@@ -300,22 +300,39 @@ export function registerPagesCommand(program: Command): void {
         // Delete existing blocks if --replace
         if (options.replace) {
           const existing = await fetchAllBlocks(client, pageId);
-          for (const block of existing) {
-            await client.delete(`blocks/${block.id}`);
-          }
           if (existing.length > 0) {
-            console.error(`Removed ${existing.length} existing blocks`);
+            console.error(
+              `Warning: --replace will permanently delete ${existing.length} existing block(s). ` +
+              `This operation is not atomic — if the subsequent write fails, deleted content cannot be recovered automatically.`
+            );
+            // Keep a reference for error recovery attempt
+            const backup = existing.map(b => b.id);
+            try {
+              for (const block of existing) {
+                await client.delete(`blocks/${block.id}`);
+              }
+              console.error(`Removed ${existing.length} existing blocks`);
+            } catch (deleteError) {
+              console.error(`Error during block deletion: ${(deleteError as Error).message}`);
+              console.error(`Partial deletion may have occurred. Block IDs that were targeted:\n${backup.join('\n')}`);
+              process.exit(1);
+            }
           }
         }
 
         // Append blocks in chunks of 100 (Notion API limit)
         let added = 0;
-        for (let i = 0; i < blocks.length; i += 100) {
-          const chunk = blocks.slice(i, i + 100);
-          await client.patch(`blocks/${pageId}/children`, {
-            children: chunk,
-          });
-          added += chunk.length;
+        try {
+          for (let i = 0; i < blocks.length; i += 100) {
+            const chunk = blocks.slice(i, i + 100);
+            await client.patch(`blocks/${pageId}/children`, {
+              children: chunk,
+            });
+            added += chunk.length;
+          }
+        } catch (writeError) {
+          console.error(`Error writing blocks (written so far: ${added}/${blocks.length}): ${(writeError as Error).message}`);
+          process.exit(1);
         }
 
         console.error(`Written ${added} blocks to page`);
@@ -424,7 +441,13 @@ export function registerPagesCommand(program: Command): void {
           return;
         }
 
-        // Execute: delete blocks
+        // Execute: delete blocks (not atomic — partial failure leaves page in intermediate state)
+        if (blocksToDelete.length > 0) {
+          console.error(
+            `Deleting ${blocksToDelete.length} block(s)... ` +
+            `(note: not atomic — partial failure will leave the page in an intermediate state)`
+          );
+        }
         for (const block of blocksToDelete) {
           await client.delete(`blocks/${block.id}`);
         }
