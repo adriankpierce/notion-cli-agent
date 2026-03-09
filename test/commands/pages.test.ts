@@ -247,6 +247,22 @@ describe('Pages Command', () => {
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"object": "page"'));
     });
+
+    it('should create page with emoji icon', async () => {
+      const createdPage = { ...mockPage, id: 'new-page-123', url: 'https://notion.so/new-page-123' };
+      mockClient.post.mockResolvedValue(createdPage);
+
+      await program.parseAsync([
+        'node', 'test', 'page', 'create',
+        '--parent', 'db-123',
+        '--title', 'New Page',
+        '--icon', '📝',
+      ]);
+
+      expect(mockClient.post).toHaveBeenCalledWith('pages', expect.objectContaining({
+        icon: { type: 'emoji', emoji: '📝' },
+      }));
+    });
   });
 
   describe('page update', () => {
@@ -334,6 +350,93 @@ describe('Pages Command', () => {
       ]);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"object": "page"'));
+    });
+
+    it('should update page icon', async () => {
+      mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
+
+      await program.parseAsync([
+        'node', 'test', 'page', 'update', 'page-123',
+        '--icon', '🚀',
+      ]);
+
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
+        icon: { type: 'emoji', emoji: '🚀' },
+      });
+    });
+
+    it('should update icon together with properties', async () => {
+      mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
+
+      await program.parseAsync([
+        'node', 'test', 'page', 'update', 'page-123',
+        '--prop', 'Status=Done',
+        '--icon', '✅',
+      ]);
+
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
+        properties: { Status: { select: { name: 'Done' } } },
+        icon: { type: 'emoji', emoji: '✅' },
+      });
+    });
+
+    it('should rename title by auto-detecting title property from parent database', async () => {
+      // First call: get page (to find parent DB), second call: get DB schema
+      mockClient.get
+        .mockResolvedValueOnce(mockPage)
+        .mockResolvedValueOnce(mockDatabase);
+      mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
+
+      await program.parseAsync([
+        'node', 'test', 'page', 'update', 'page-123',
+        '--title', 'Renamed Page',
+      ]);
+
+      expect(mockClient.get).toHaveBeenCalledWith('pages/page-123');
+      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
+        properties: {
+          Name: { title: [{ text: { content: 'Renamed Page' } }] },
+        },
+      });
+    });
+
+    it('should rename title using explicit --title-prop without fetching schema', async () => {
+      mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
+
+      await program.parseAsync([
+        'node', 'test', 'page', 'update', 'page-123',
+        '--title', 'Renamed Page',
+        '--title-prop', 'Task Name',
+      ]);
+
+      // Should NOT fetch page or DB when --title-prop is provided
+      expect(mockClient.get).not.toHaveBeenCalled();
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
+        properties: {
+          'Task Name': { title: [{ text: { content: 'Renamed Page' } }] },
+        },
+      });
+    });
+
+    it('should rename title together with other properties', async () => {
+      mockClient.get
+        .mockResolvedValueOnce(mockPage)
+        .mockResolvedValueOnce(mockDatabase);
+      mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
+
+      await program.parseAsync([
+        'node', 'test', 'page', 'update', 'page-123',
+        '--title', 'Renamed Page',
+        '--prop', 'Status=Done',
+      ]);
+
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
+        properties: {
+          Name: { title: [{ text: { content: 'Renamed Page' } }] },
+          Status: { select: { name: 'Done' } },
+        },
+      });
     });
   });
 
