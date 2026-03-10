@@ -108,7 +108,7 @@ describe('Pages Command', () => {
       expect(console.log).toHaveBeenCalledWith('URL:', 'https://notion.so/new-page-123');
     });
 
-    it('should create page under parent page', async () => {
+    it('should create page under parent page using "title" property key', async () => {
       const createdPage = { ...mockPage, id: 'new-page-123', url: 'https://notion.so/new-page-123' };
       mockClient.post.mockResolvedValue(createdPage);
 
@@ -119,10 +119,11 @@ describe('Pages Command', () => {
         '--title', 'Subpage',
       ]);
 
+      // Non-DB pages use 'title' as property key, not 'Name'
       expect(mockClient.post).toHaveBeenCalledWith('pages', {
         parent: { page_id: 'page-456' },
         properties: {
-          Name: {
+          title: {
             title: [{ text: { content: 'Subpage' } }],
           },
         },
@@ -397,6 +398,46 @@ describe('Pages Command', () => {
       expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
         properties: {
           Name: { title: [{ text: { content: 'Renamed Page' } }] },
+        },
+      });
+    });
+
+    it('should rename title using "title" property key when page has non-DB parent', async () => {
+      // Page whose parent is another page, not a database
+      const nonDbPage = { ...mockPage, parent: { type: 'page_id', page_id: 'parent-page-456' } };
+      mockClient.get.mockResolvedValueOnce(nonDbPage);
+      mockClient.patch.mockResolvedValue({ ...nonDbPage, id: 'page-123' });
+
+      await program.parseAsync([
+        'node', 'test', 'page', 'update', 'page-123',
+        '--title', 'Renamed Subpage',
+      ]);
+
+      expect(mockClient.get).toHaveBeenCalledWith('pages/page-123');
+      // Should NOT fetch DB schema (no database_id to resolve)
+      expect(mockClient.get).toHaveBeenCalledTimes(1);
+      // Non-DB pages use 'title' as property key, not 'Name'
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
+        properties: {
+          title: { title: [{ text: { content: 'Renamed Subpage' } }] },
+        },
+      });
+    });
+
+    it('should fall back to "title" prop key when page fetch fails', async () => {
+      // If get pages/{id} throws (network error, bad ID), we cannot detect parent type.
+      // 'title' is Notion's universal built-in key — safer fallback than 'Name'.
+      mockClient.get.mockRejectedValueOnce(new Error('Network error'));
+      mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
+
+      await program.parseAsync([
+        'node', 'test', 'page', 'update', 'page-123',
+        '--title', 'Renamed Page',
+      ]);
+
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
+        properties: {
+          title: { title: [{ text: { content: 'Renamed Page' } }] },
         },
       });
     });
