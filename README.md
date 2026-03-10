@@ -139,9 +139,13 @@ notion page create --parent <db_id> --title "New Task"
 notion page create --parent <db_id> --title "Bug Fix" \
   --prop "Status=Todo" \
   --prop "Priority=High"
+notion page create --parent <db_id> --title "Meeting Notes" --icon 📝
 
 # Update page
 notion page update <page_id> --prop "Status=Done"
+notion page update <page_id> --title "New Title"
+notion page update <page_id> --icon 🚀
+notion page update <page_id> --prop "Status=Done" --icon ✅
 
 # Archive page
 notion page archive <page_id>

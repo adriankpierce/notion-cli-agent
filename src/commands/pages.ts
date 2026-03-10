@@ -61,6 +61,7 @@ export function registerPagesCommand(program: Command): void {
     .option('--title-prop <name>', 'Name of title property (auto-detected if not set)')
     .option('-p, --prop <key=value...>', 'Set property (can be used multiple times)')
     .option('-c, --content <text>', 'Initial page content (paragraph)')
+    .option('--icon <emoji>', 'Set page icon (emoji character, e.g. 📝)')
     .option('-j, --json', 'Output raw JSON')
     .action(async (options) => {
       try {
@@ -109,6 +110,10 @@ export function registerPagesCommand(program: Command): void {
 
         const body: Record<string, unknown> = { parent, properties };
 
+        if (options.icon) {
+          body.icon = { type: 'emoji', emoji: options.icon };
+        }
+
         // Add initial content if provided
         if (options.content) {
           body.children = [{
@@ -139,24 +144,67 @@ export function registerPagesCommand(program: Command): void {
   pages
     .command('update <page_id>')
     .description('Update page properties')
+    .option('-t, --title <title>', 'Rename the page title')
+    .option('--title-prop <name>', 'Name of title property (auto-detected if not set)')
     .option('-p, --prop <key=value...>', 'Set property (can be used multiple times)')
     .option('--archive', 'Archive the page')
     .option('--unarchive', 'Unarchive the page')
+    .option('--icon <emoji>', 'Set page icon (emoji character, e.g. 📝)')
     .option('-j, --json', 'Output raw JSON')
     .action(async (pageId: string, options) => {
       try {
         const client = getClient();
 
         const body: Record<string, unknown> = {};
+        const properties: Record<string, unknown> = {};
+
+        if (options.title) {
+          let titlePropName = options.titleProp;
+
+          if (!titlePropName) {
+            try {
+              const page = await client.get(`pages/${pageId}`) as {
+                parent: { type: string; database_id?: string };
+              };
+              if (page.parent.type === 'database_id' && page.parent.database_id) {
+                const db = await client.get(`databases/${page.parent.database_id}`) as {
+                  properties: Record<string, { type: string }>;
+                };
+                for (const [name, prop] of Object.entries(db.properties)) {
+                  if (prop.type === 'title') {
+                    titlePropName = name;
+                    break;
+                  }
+                }
+              }
+            } catch {
+              // Fall back to common default
+            }
+          }
+
+          titlePropName = titlePropName || 'Name';
+          properties[titlePropName] = {
+            title: [{ text: { content: options.title } }],
+          };
+        }
 
         if (options.prop) {
-          body.properties = parseProperties(options.prop);
+          const parsed = parseProperties(options.prop);
+          Object.assign(properties, parsed);
+        }
+
+        if (Object.keys(properties).length > 0) {
+          body.properties = properties;
         }
 
         if (options.archive) {
           body.archived = true;
         } else if (options.unarchive) {
           body.archived = false;
+        }
+
+        if (options.icon) {
+          body.icon = { type: 'emoji', emoji: options.icon };
         }
 
         const page = await client.patch(`pages/${pageId}`, body);
