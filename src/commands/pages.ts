@@ -162,14 +162,15 @@ export function registerPagesCommand(program: Command): void {
         if (options.title) {
           let titlePropName = options.titleProp;
 
-          let parentIsDatabase = false;
+          // parentType: 'database' | 'page' | null (null = unknown, page fetch failed)
+          let detectedParentType: 'database' | 'page' | null = null;
           if (!titlePropName) {
             try {
               const page = await client.get(`pages/${pageId}`) as {
                 parent: { type: string; database_id?: string };
               };
               if (page.parent.type === 'database_id' && page.parent.database_id) {
-                parentIsDatabase = true;
+                detectedParentType = 'database';
                 const db = await client.get(`databases/${page.parent.database_id}`) as {
                   properties: Record<string, { type: string }>;
                 };
@@ -179,14 +180,17 @@ export function registerPagesCommand(program: Command): void {
                     break;
                   }
                 }
+              } else {
+                detectedParentType = 'page';
               }
             } catch {
               // Fall back to common default
             }
           }
 
-          // Non-DB pages (page/workspace parent) use 'title'; DB pages default to 'Name'
-          titlePropName = titlePropName || (parentIsDatabase ? 'Name' : 'title');
+          // Non-DB pages use 'title'; DB pages default to 'Name'; unknown (fetch failed) → 'title'
+          // Note: if fetch failed entirely we can't know parent type — 'title' is Notion's universal key
+          titlePropName = titlePropName || (detectedParentType === 'database' ? 'Name' : 'title');
           properties[titlePropName] = {
             title: [{ text: { content: options.title } }],
           };

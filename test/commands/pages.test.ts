@@ -424,6 +424,24 @@ describe('Pages Command', () => {
       });
     });
 
+    it('should fall back to "title" prop key when page fetch fails', async () => {
+      // If get pages/{id} throws (network error, bad ID), we cannot detect parent type.
+      // 'title' is Notion's universal built-in key — safer fallback than 'Name'.
+      mockClient.get.mockRejectedValueOnce(new Error('Network error'));
+      mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
+
+      await program.parseAsync([
+        'node', 'test', 'page', 'update', 'page-123',
+        '--title', 'Renamed Page',
+      ]);
+
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
+        properties: {
+          title: { title: [{ text: { content: 'Renamed Page' } }] },
+        },
+      });
+    });
+
     it('should rename title using explicit --title-prop without fetching schema', async () => {
       mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
 
