@@ -214,6 +214,117 @@ describe('Databases Command', () => {
     });
   });
 
+  describe('database query multi-filter', () => {
+    it('should combine two filter groups with { and: [...] }', async () => {
+      const result = createPaginatedResult([mockPage]);
+      mockClient.post.mockResolvedValue(result);
+
+      await program.parseAsync([
+        'node', 'test', 'database', 'query', 'db-123',
+        '--filter-prop', 'Due Date',
+        '--filter-type', 'before',
+        '--filter-value', '2024-01-01',
+        '--filter-prop-type', 'date',
+        '--filter-prop', 'Done',
+        '--filter-type', 'equals',
+        '--filter-value', 'true',
+        '--filter-prop-type', 'checkbox',
+      ]);
+
+      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+        filter: {
+          and: [
+            { property: 'Due Date', date: { before: '2024-01-01' } },
+            { property: 'Done', checkbox: { equals: true } },
+          ],
+        },
+        page_size: 100,
+      });
+    });
+
+    it('should combine three filter groups with { and: [...] }', async () => {
+      const result = createPaginatedResult([mockPage]);
+      mockClient.post.mockResolvedValue(result);
+
+      await program.parseAsync([
+        'node', 'test', 'database', 'query', 'db-123',
+        '--filter-prop', 'Status',
+        '--filter-type', 'equals',
+        '--filter-value', 'Done',
+        '--filter-prop-type', 'status',
+        '--filter-prop', 'Priority',
+        '--filter-type', 'equals',
+        '--filter-value', 'High',
+        '--filter-prop-type', 'select',
+        '--filter-prop', 'Done',
+        '--filter-type', 'equals',
+        '--filter-value', 'true',
+        '--filter-prop-type', 'checkbox',
+      ]);
+
+      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+        filter: {
+          and: [
+            { property: 'Status', status: { equals: 'Done' } },
+            { property: 'Priority', select: { equals: 'High' } },
+            { property: 'Done', checkbox: { equals: true } },
+          ],
+        },
+        page_size: 100,
+      });
+    });
+
+    it('should exit with error when filter flag counts are mismatched', async () => {
+      await expect(
+        program.parseAsync([
+          'node', 'test', 'database', 'query', 'db-123',
+          '--filter-prop', 'Status',
+          '--filter-prop', 'Priority',
+          '--filter-type', 'equals',
+          '--filter-value', 'Done',
+        ])
+      ).rejects.toThrow('process.exit(1)');
+
+      expect(console.error).toHaveBeenCalledWith(
+        'Error: --filter-prop, --filter-type, and --filter-value must be provided the same number of times'
+      );
+    });
+
+    it('should produce plain filter object for single filter group (regression)', async () => {
+      const result = createPaginatedResult([mockPage]);
+      mockClient.post.mockResolvedValue(result);
+
+      await program.parseAsync([
+        'node', 'test', 'database', 'query', 'db-123',
+        '--filter-prop', 'Status',
+        '--filter-type', 'equals',
+        '--filter-value', 'Done',
+        '--filter-prop-type', 'status',
+      ]);
+
+      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+        filter: { property: 'Status', status: { equals: 'Done' } },
+        page_size: 100,
+      });
+    });
+
+    it('should use raw --filter JSON unchanged (regression)', async () => {
+      const result = createPaginatedResult([mockPage]);
+      mockClient.post.mockResolvedValue(result);
+
+      const filter = JSON.stringify({ property: 'Status', status: { equals: 'Done' } });
+      await program.parseAsync([
+        'node', 'test', 'database', 'query', 'db-123',
+        '--filter', filter,
+      ]);
+
+      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+        filter: { property: 'Status', status: { equals: 'Done' } },
+        page_size: 100,
+      });
+    });
+  });
+
   describe('Error handling', () => {
     it('should handle get errors', async () => {
       mockClient.get.mockRejectedValue(new Error('Database not found'));

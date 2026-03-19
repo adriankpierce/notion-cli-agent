@@ -44,10 +44,10 @@ export function registerDatabasesCommand(program: Command): void {
     .command('query <database_id>')
     .description('Query a database')
     .option('-f, --filter <json>', 'Filter as JSON string')
-    .option('--filter-prop <property>', 'Property to filter on')
-    .option('--filter-type <type>', 'Filter type: equals, contains, etc.')
-    .option('--filter-value <value>', 'Filter value')
-    .option('--filter-prop-type <propType>', 'Property type: select, status, text, number, date, checkbox')
+    .option('--filter-prop <property>', 'Property to filter on (repeatable)', (v, a: string[]) => [...a, v], [] as string[])
+    .option('--filter-type <type>', 'Filter type: equals, contains, etc. (repeatable)', (v, a: string[]) => [...a, v], [] as string[])
+    .option('--filter-value <value>', 'Filter value (repeatable)', (v, a: string[]) => [...a, v], [] as string[])
+    .option('--filter-prop-type <propType>', 'Property type: select, status, text, number, date, checkbox (repeatable)', (v, a: string[]) => [...a, v], [] as string[])
     .option('-s, --sort <property>', 'Sort by property')
     .option('--sort-dir <direction>', 'Sort direction: asc, desc', 'desc')
     .option('-l, --limit <number>', 'Max results', '100')
@@ -62,13 +62,22 @@ export function registerDatabasesCommand(program: Command): void {
         // Handle filter
         if (options.filter) {
           body.filter = JSON.parse(options.filter);
-        } else if (options.filterProp && options.filterType && options.filterValue) {
-          body.filter = parseFilter(
-            options.filterProp,
-            options.filterType,
-            options.filterValue,
-            options.filterPropType
+        } else if (options.filterProp.length > 0) {
+          const props: string[] = options.filterProp;
+          const types: string[] = options.filterType;
+          const values: string[] = options.filterValue;
+          const propTypes: string[] = options.filterPropType;
+
+          if (props.length !== types.length || props.length !== values.length) {
+            console.error('Error: --filter-prop, --filter-type, and --filter-value must be provided the same number of times');
+            process.exit(1);
+          }
+
+          const filters = props.map((prop, i) =>
+            parseFilter(prop, types[i], values[i], propTypes[i])
           );
+
+          body.filter = filters.length > 1 ? { and: filters } : filters[0];
         }
 
         // Handle sort
