@@ -7,6 +7,7 @@ import { getClient } from '../client.js';
 import { formatOutput, formatPageTitle, parseProperties } from '../utils/format.js';
 import { markdownToBlocks } from '../utils/markdown.js';
 import { blocksToMarkdownAsync, fetchAllBlocks, getPageTitle } from '../utils/notion-helpers.js';
+import { getDatabaseSchema } from '../utils/database-resolver.js';
 import type { Page } from '../types/notion.js';
 
 export function registerPagesCommand(program: Command): void {
@@ -80,7 +81,7 @@ export function registerPagesCommand(program: Command): void {
           // If not specified and parent is database, fetch schema to find title property
           if (!titlePropName && options.parentType === 'database') {
             try {
-              const db = await client.get(`databases/${options.parent}`) as {
+              const db = await getDatabaseSchema(client, options.parent) as {
                 properties: Record<string, { type: string }>;
               };
               // Find the property with type "title"
@@ -171,7 +172,7 @@ export function registerPagesCommand(program: Command): void {
               };
               if (page.parent.type === 'database_id' && page.parent.database_id) {
                 detectedParentType = 'database';
-                const db = await client.get(`databases/${page.parent.database_id}`) as {
+                const db = await getDatabaseSchema(client, page.parent.database_id) as {
                   properties: Record<string, { type: string }>;
                 };
                 for (const [name, prop] of Object.entries(db.properties)) {

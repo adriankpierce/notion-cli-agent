@@ -4,6 +4,8 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput, formatDatabaseTitle, parseFilter } from '../utils/format.js';
+import { getDatabaseSchema, queryDatabase, updateDatabase } from '../utils/database-resolver.js';
+import type { Database } from '../types/notion.js';
 
 export function registerDatabasesCommand(program: Command): void {
   const databases = program
@@ -20,16 +22,15 @@ export function registerDatabasesCommand(program: Command): void {
     .action(async (databaseId: string, options) => {
       try {
         const client = getClient();
-        const db = await client.get(`databases/${databaseId}`);
+        const db = await getDatabaseSchema(client, databaseId) as Database & Record<string, unknown>;
 
         if (options.json) {
           console.log(formatOutput(db));
         } else {
           console.log('Database:', formatDatabaseTitle(db));
-          console.log('ID:', (db as { id: string }).id);
+          console.log('ID:', db.id);
           console.log('\nProperties:');
-          const props = (db as { properties: Record<string, { type: string }> }).properties;
-          for (const [name, prop] of Object.entries(props)) {
+          for (const [name, prop] of Object.entries(db.properties)) {
             console.log(`  - ${name}: ${prop.type}`);
           }
         }
@@ -96,7 +97,7 @@ export function registerDatabasesCommand(program: Command): void {
         if (options.limit) body.page_size = parseInt(options.limit, 10);
         if (options.cursor) body.start_cursor = options.cursor;
 
-        const result = await client.post(`databases/${databaseId}/query`, body);
+        const result = await queryDatabase(client, databaseId, body);
 
         if (options.json) {
           console.log(formatOutput(result));
@@ -213,7 +214,7 @@ export function registerDatabasesCommand(program: Command): void {
           body.properties = properties;
         }
 
-        const db = await client.patch(`databases/${databaseId}`, body);
+        const db = await updateDatabase(client, databaseId, body);
 
         if (options.json) {
           console.log(formatOutput(db));

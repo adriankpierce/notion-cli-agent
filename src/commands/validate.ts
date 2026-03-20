@@ -3,6 +3,7 @@
  */
 import { Command } from 'commander';
 import { getClient } from '../client.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import { formatOutput } from '../utils/format.js';
 import { getPageTitle } from '../utils/notion-helpers.js';
 import type { Page, Database, PropertySchema } from '../types/notion.js';
@@ -77,9 +78,9 @@ export function registerValidateCommand(program: Command): void {
         const issues: ValidationIssue[] = [];
         
         // Get database schema
-        const db = await client.get(`databases/${databaseId}`) as Database;
+        const db = await getDatabaseSchema(client, databaseId);
         const dbTitle = db.title?.map(t => t.plain_text).join('') || 'Untitled';
-        
+
         console.log(`🔍 Validating database: ${dbTitle}\n`);
         
         // Determine required properties
@@ -106,11 +107,11 @@ export function registerValidateCommand(program: Command): void {
           const body: Record<string, unknown> = { page_size: 100 };
           if (cursor) body.start_cursor = cursor;
           
-          const result = await client.post(`databases/${databaseId}/query`, body) as {
+          const result = await queryDatabase<{
             results: Page[];
             has_more: boolean;
             next_cursor?: string;
-          };
+          }>(client, databaseId, body);
           
           entries.push(...result.results);
           cursor = result.has_more ? result.next_cursor : undefined;
@@ -311,9 +312,9 @@ export function registerValidateCommand(program: Command): void {
         const client = getClient();
         
         // Get database
-        const db = await client.get(`databases/${databaseId}`) as Database;
+        const db = await getDatabaseSchema(client, databaseId);
         const dbTitle = db.title?.map(t => t.plain_text).join('') || 'Untitled';
-        
+
         console.log(`🔍 Linting: ${dbTitle}\n`);
         
         // Quick queries for common issues
@@ -366,10 +367,10 @@ export function registerValidateCommand(program: Command): void {
 
         for (const check of checks) {
           try {
-            const countResult = await client.post(`databases/${databaseId}/query`, {
+            const countResult = await queryDatabase<{ results: Page[] }>(client, databaseId, {
               filter: check.filter,
               page_size: 100,
-            }) as { results: Page[] };
+            });
 
             const count = countResult.results.length;
 
@@ -386,9 +387,9 @@ export function registerValidateCommand(program: Command): void {
         }
 
         // Check for duplicate titles (requires fetching entries)
-        const allEntries = await client.post(`databases/${databaseId}/query`, {
+        const allEntries = await queryDatabase<{ results: Page[] }>(client, databaseId, {
           page_size: 100,
-        }) as { results: Page[] };
+        });
 
         const titleCounts = new Map<string, number>();
         for (const entry of allEntries.results) {
@@ -426,14 +427,14 @@ export function registerValidateCommand(program: Command): void {
       try {
         const client = getClient();
         
-        const db = await client.get(`databases/${databaseId}`) as Database;
+        const db = await getDatabaseSchema(client, databaseId);
         const dbTitle = db.title?.map(t => t.plain_text).join('') || 'Untitled';
-        
+
         // Query recent entries
-        const result = await client.post(`databases/${databaseId}/query`, {
+        const result = await queryDatabase<{ results: Page[] }>(client, databaseId, {
           page_size: 100,
           sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
-        }) as { results: Page[] };
+        });
         
         const entries = result.results;
         

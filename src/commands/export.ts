@@ -8,6 +8,7 @@ import * as path from 'path';
 import {
   richTextToMarkdown,
 } from '../utils/markdown.js';
+import { queryDatabase } from '../utils/database-resolver.js';
 import { blocksToMarkdownAsync } from '../utils/notion-helpers.js';
 import type { RichText, Block, Page } from '../types/notion.js';
 
@@ -242,7 +243,7 @@ export function registerExportCommand(program: Command): void {
         do {
           if (cursor) body.start_cursor = cursor;
           
-          const result = await client.post(`databases/${databaseId}/query`, body) as {
+          const result = await queryDatabase(client, databaseId, body) as {
             results: Page[];
             has_more: boolean;
             next_cursor?: string;

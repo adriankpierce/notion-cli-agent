@@ -9,9 +9,9 @@ describe('Databases Command', () => {
   beforeEach(async () => {
     vi.resetModules();
 
-    // Create mock client
+    // Create mock client — get defaults to mockDatabase for resolver
     mockClient = {
-      get: vi.fn(),
+      get: vi.fn().mockResolvedValue(mockDatabase),
       post: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),

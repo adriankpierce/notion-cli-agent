@@ -6,6 +6,7 @@ import { getClient } from '../client.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { markdownToBlocks } from '../utils/markdown.js';
+import { getDatabaseSchema } from '../utils/database-resolver.js';
 import type { Database, PropertySchema } from '../types/notion.js';
 
 interface FrontMatter {
@@ -216,9 +217,9 @@ export function registerImportCommand(program: Command): void {
         const client = getClient();
         
         // Get database schema
-        const db = await client.get(`databases/${options.to}`) as Database;
+        const db = await getDatabaseSchema(client, options.to);
         const titleProp = findTitleProperty(db.properties);
-        
+
         // Find markdown files
         const basePath = options.folder 
           ? path.join(vaultPath, options.folder)
@@ -325,9 +326,9 @@ export function registerImportCommand(program: Command): void {
         const client = getClient();
         
         // Get database schema
-        const db = await client.get(`databases/${options.to}`) as Database;
+        const db = await getDatabaseSchema(client, options.to);
         const titleProp = findTitleProperty(db.properties);
-        
+
         // Read CSV
         const content = fs.readFileSync(filePath, 'utf-8');
         const lines = content.split('\n').filter(l => l.trim());

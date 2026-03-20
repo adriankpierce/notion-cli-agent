@@ -4,6 +4,7 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { fetchAllBlocks } from '../utils/notion-helpers.js';
+import { getDatabaseSchema } from '../utils/database-resolver.js';
 import type { Block, Page } from '../types/notion.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -217,7 +218,7 @@ export function registerTemplateCommand(program: Command): void {
           // If database, get actual title prop name
           if (options.parentType === 'database') {
             try {
-              const db = await client.get(`databases/${options.parent}`) as {
+              const db = await getDatabaseSchema(client, options.parent) as {
                 properties: Record<string, { type: string }>;
               };
               for (const [name, prop] of Object.entries(db.properties)) {

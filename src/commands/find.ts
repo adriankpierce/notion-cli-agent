@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
 import { getPageTitle } from '../utils/notion-helpers.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import type { Page, Database, PropertySchema } from '../types/notion.js';
 
 interface SelectOption {
@@ -189,7 +190,7 @@ export function registerFindCommand(program: Command): void {
         const client = getClient();
         
         // Get database schema first
-        const db = await client.get(`databases/${options.database}`) as Database;
+        const db = await getDatabaseSchema(client, options.database);
         const schema = db.properties;
         
         // Parse the query
@@ -308,10 +309,10 @@ export function registerFindCommand(program: Command): void {
         };
         if (filter) body.filter = filter;
         
-        const result = await client.post(`databases/${options.database}/query`, body) as {
+        const result = await queryDatabase<{
           results: Page[];
           has_more: boolean;
-        };
+        }>(client, options.database, body);
         
         // Output
         if (options.json) {

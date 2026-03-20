@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { fetchAllBlocks, getPageTitle, getDbTitle, getDbDescription, getPropertyValue } from '../utils/notion-helpers.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import type { Block, Page, Database, PropertySchema } from '../types/notion.js';
 
 interface SelectOption {
@@ -250,12 +251,12 @@ export function registerAICommand(program: Command): void {
         const client = getClient();
         
         // Get database
-        const db = await client.get(`databases/${databaseId}`) as Database;
+        const db = await getDatabaseSchema(client, databaseId);
         const title = getDbTitle(db);
         const description = getDbDescription(db);
-        
+
         // Get example entries
-        const examples = await client.post(`databases/${databaseId}/query`, {
+        const examples = await queryDatabase(client, databaseId, {
           page_size: parseInt(options.examples, 10),
         }) as { results: Page[] };
         
@@ -386,7 +387,7 @@ export function registerAICommand(program: Command): void {
     .action(async (databaseId: string, description: string, _options) => {
       try {
         const client = getClient();
-        const db = await client.get(`databases/${databaseId}`) as Database;
+        const db = await getDatabaseSchema(client, databaseId);
         const lowerDesc = description.toLowerCase();
         
         // Find relevant properties

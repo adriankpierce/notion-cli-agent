@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
 import { getDbTitle, getDbDescription } from '../utils/notion-helpers.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import type { Database, PropertySchema } from '../types/notion.js';
 
 interface SelectOption {
@@ -148,16 +149,16 @@ export function registerInspectCommand(program: Command): void {
     .action(async (databaseId: string, options) => {
       try {
         const client = getClient();
-        const db = await client.get(`databases/${databaseId}`) as Database;
-        
+        const db = await getDatabaseSchema(client, databaseId);
+
         if (options.json) {
           console.log(formatOutput(db));
           return;
         }
-        
+
         const title = getDbTitle(db);
         const desc = getDbDescription(db);
-        
+
         if (options.llm) {
           // Compact LLM-friendly format
           console.log(`# Database: ${title}\n`);
@@ -263,14 +264,14 @@ export function registerInspectCommand(program: Command): void {
         const client = getClient();
         
         // Get database schema
-        const db = await client.get(`databases/${databaseId}`) as Database;
+        const db = await getDatabaseSchema(client, databaseId);
         const title = getDbTitle(db);
         const desc = getDbDescription(db);
-        
+
         // Get example entries
-        const examples = await client.post(`databases/${databaseId}/query`, {
-          page_size: parseInt(options.examples, 10),
-        }) as { results: { id: string; properties: Record<string, unknown> }[] };
+        const examples = await queryDatabase<{ results: { id: string; properties: Record<string, unknown> }[] }>(
+          client, databaseId, { page_size: parseInt(options.examples, 10) },
+        );
         
         // Generate context
         console.log(`# Notion Database Context: ${title}\n`);

@@ -4,6 +4,7 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { fetchAllBlocks, getPageTitle, getDbTitle } from '../utils/notion-helpers.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import type { Block, Page, Database } from '../types/notion.js';
 
 // Clean block for duplication (remove IDs, etc.)
@@ -177,15 +178,15 @@ export function registerDuplicateCommand(program: Command): void {
         
         // Get source database
         console.log('Fetching source database schema...');
-        const sourceDb = await client.get(`databases/${databaseId}`) as Database;
+        const sourceDb = await getDatabaseSchema(client, databaseId);
         const sourceTitle = getDbTitle(sourceDb);
-        
+
         // Prepare new title
         const newTitle = options.title || `Copy of ${sourceTitle}`;
-        
+
         // Clone properties (excluding computed ones)
         const newProperties: Record<string, unknown> = {};
-        
+
         for (const [name, schema] of Object.entries(sourceDb.properties)) {
           // Skip formula and rollup as they depend on other DBs
           if (
@@ -295,9 +296,9 @@ export function registerDuplicateCommand(program: Command): void {
         
         // Get source database
         console.log('Fetching source database...');
-        const sourceDb = await client.get(`databases/${databaseId}`) as Database;
+        const sourceDb = await getDatabaseSchema(client, databaseId);
         const sourceTitle = getDbTitle(sourceDb);
-        
+
         // Query all entries
         const entries: Page[] = [];
         let cursor: string | undefined;
@@ -307,7 +308,7 @@ export function registerDuplicateCommand(program: Command): void {
           if (cursor) body.start_cursor = cursor;
           if (options.limit && entries.length >= parseInt(options.limit, 10)) break;
           
-          const result = await client.post(`databases/${databaseId}/query`, body) as {
+          const result = await queryDatabase(client, databaseId, body) as {
             results: Page[];
             has_more: boolean;
             next_cursor?: string;

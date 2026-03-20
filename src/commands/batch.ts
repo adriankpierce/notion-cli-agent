@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import { getClient, NotionClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
+import { getDatabaseSchema, queryDatabase, updateDatabase } from '../utils/database-resolver.js';
 
 interface BatchOperation {
   op: 'get' | 'create' | 'update' | 'delete' | 'query' | 'append';
@@ -27,7 +28,7 @@ async function executeOperation(client: NotionClient, op: BatchOperation): Promi
   switch (op.op) {
     case 'get':
       if (op.type === 'page') return client.get(`pages/${op.id}`);
-      if (op.type === 'database') return client.get(`databases/${op.id}`);
+      if (op.type === 'database') return getDatabaseSchema(client, op.id!);
       if (op.type === 'block') return client.get(`blocks/${op.id}`);
       break;
 
@@ -52,7 +53,7 @@ async function executeOperation(client: NotionClient, op: BatchOperation): Promi
 
     case 'update':
       if (op.type === 'page') return client.patch(`pages/${op.id}`, op.data || {});
-      if (op.type === 'database') return client.patch(`databases/${op.id}`, op.data || {});
+      if (op.type === 'database') return updateDatabase(client, op.id!, op.data || {});
       if (op.type === 'block') return client.patch(`blocks/${op.id}`, op.data || {});
       break;
 
@@ -62,7 +63,7 @@ async function executeOperation(client: NotionClient, op: BatchOperation): Promi
 
     case 'query':
       if (op.type === 'database') {
-        return client.post(`databases/${op.id}/query`, op.data || {});
+        return queryDatabase(client, op.id!, op.data || {});
       }
       break;
 

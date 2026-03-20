@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { parseFilter, parseProperties } from '../utils/format.js';
 import { getPageTitle } from '../utils/notion-helpers.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import type { Page, Database, PropertySchema } from '../types/notion.js';
 
 // Parse simple where clause: "Status=Done,Priority=High"
@@ -105,21 +106,21 @@ export function registerBulkCommand(program: Command): void {
         const client = getClient();
         
         // Get database schema
-        const db = await client.get(`databases/${databaseId}`) as Database;
-        
+        const db = await getDatabaseSchema(client, databaseId);
+
         // Parse where clause
         const filter = parseWhereClause(options.where, db.properties);
-        
+
         if (!filter) {
           console.error('Error: Invalid --where clause');
           process.exit(1);
         }
-        
+
         // Parse set clause
         const setProperties = parseProperties(options.set.split(',').map((s: string) => s.trim()));
-        
+
         // Query matching entries
-        const result = await client.post(`databases/${databaseId}/query`, {
+        const result = await queryDatabase(client, databaseId, {
           filter,
           page_size: parseInt(options.limit, 10),
         }) as { results: Page[]; has_more: boolean };
@@ -192,18 +193,18 @@ export function registerBulkCommand(program: Command): void {
         const client = getClient();
         
         // Get database schema
-        const db = await client.get(`databases/${databaseId}`) as Database;
-        
+        const db = await getDatabaseSchema(client, databaseId);
+
         // Parse where clause
         const filter = parseWhereClause(options.where, db.properties);
-        
+
         if (!filter) {
           console.error('Error: Invalid --where clause');
           process.exit(1);
         }
-        
+
         // Query matching entries
-        const result = await client.post(`databases/${databaseId}/query`, {
+        const result = await queryDatabase(client, databaseId, {
           filter,
           page_size: parseInt(options.limit, 10),
         }) as { results: Page[]; has_more: boolean };

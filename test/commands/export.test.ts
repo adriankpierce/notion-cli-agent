@@ -414,7 +414,10 @@ describe('Export Command', () => {
 
     it('should handle content fetch errors gracefully', async () => {
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-      mockClient.get.mockRejectedValue(new Error('Block fetch failed'));
+      // Resolver needs schema resolution to succeed, then block fetch fails
+      mockClient.get
+        .mockResolvedValueOnce(mockDatabase)
+        .mockRejectedValue(new Error('Block fetch failed'));
 
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault', '--content']);
 

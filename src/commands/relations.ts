@@ -5,6 +5,7 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
 import { getPageTitle } from '../utils/notion-helpers.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import type { Page, Database, PropertySchema, Block } from '../types/notion.js';
 
 export function registerRelationsCommand(program: Command): void {
@@ -47,14 +48,14 @@ export function registerRelationsCommand(program: Command): void {
         
         // Strategy 2: Check relation properties in the same database
         if (targetPage.parent.database_id) {
-          const db = await client.get(`databases/${targetPage.parent.database_id}`) as Database;
+          const db = await getDatabaseSchema(client, targetPage.parent.database_id);
           
           // Find relation properties that point to this database
           for (const [propName, schema] of Object.entries(db.properties)) {
             if (schema.type === 'relation' && (schema.relation as { database_id?: string })?.database_id) {
               // Query for entries with relation to our page
               try {
-                const relResult = await client.post(`databases/${(schema.relation as { database_id: string }).database_id}/query`, {
+                const relResult = await queryDatabase(client, (schema.relation as { database_id: string }).database_id, {
                   page_size: 100,
                 }) as { results: Page[] };
                 

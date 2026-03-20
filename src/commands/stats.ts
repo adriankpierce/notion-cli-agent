@@ -4,6 +4,7 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import { getDbTitle } from '../utils/notion-helpers.js';
 import type { Page, Database, PropertySchema } from '../types/notion.js';
 
@@ -53,7 +54,7 @@ export function registerStatsCommand(program: Command): void {
         const client = getClient();
         
         // Get database info
-        const db = await client.get(`databases/${databaseId}`) as Database;
+        const db = await getDatabaseSchema(client, databaseId);
         const title = getDbTitle(db);
         
         // Find status/select properties for breakdown
@@ -88,11 +89,11 @@ export function registerStatsCommand(program: Command): void {
           const body: Record<string, unknown> = { page_size: 100 };
           if (cursor) body.start_cursor = cursor;
           
-          const result = await client.post(`databases/${databaseId}/query`, body) as {
+          const result = await queryDatabase<{
             results: Page[];
             has_more: boolean;
             next_cursor?: string;
-          };
+          }>(client, databaseId, body);
           
           entries.push(...result.results);
           cursor = result.has_more ? result.next_cursor : undefined;
@@ -230,14 +231,14 @@ export function registerStatsCommand(program: Command): void {
         since.setHours(0, 0, 0, 0);
         
         // Query recently edited entries
-        const result = await client.post(`databases/${databaseId}/query`, {
+        const result = await queryDatabase<{ results: Page[] }>(client, databaseId, {
           filter: {
             timestamp: 'last_edited_time',
             last_edited_time: { on_or_after: since.toISOString() },
           },
           sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
           page_size: 100,
-        }) as { results: Page[] };
+        });
         
         // Group by day
         const byDay: Record<string, Page[]> = {};
