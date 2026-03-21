@@ -52,11 +52,13 @@ notion batch --llm --data '[
 
 ### Create multiple tasks
 
+`data.properties` must use Notion API property format. Use `notion inspect schema <db_id> --llm` to discover property names and types.
+
 ```bash
 notion batch --llm --data '[
-  {"op":"create","type":"page","parent":"<tasks_db_id>","data":{"title":"Fix login bug","Status":"Todo","Priority":"High"}},
-  {"op":"create","type":"page","parent":"<tasks_db_id>","data":{"title":"Write tests","Status":"Todo","Priority":"Medium"}},
-  {"op":"create","type":"page","parent":"<tasks_db_id>","data":{"title":"Update docs","Status":"Todo","Priority":"Low"}}
+  {"op":"create","type":"page","parent":"<tasks_db_id>","data":{"properties":{"Name":{"title":[{"text":{"content":"Fix login bug"}}]},"Status":{"status":{"name":"Todo"}},"Priority":{"select":{"name":"High"}}}}},
+  {"op":"create","type":"page","parent":"<tasks_db_id>","data":{"properties":{"Name":{"title":[{"text":{"content":"Write tests"}}]},"Status":{"status":{"name":"Todo"}}}}},
+  {"op":"create","type":"page","parent":"<tasks_db_id>","data":{"properties":{"Name":{"title":[{"text":{"content":"Update docs"}}]}}}}
 ]'
 ```
 
@@ -64,11 +66,13 @@ notion batch --llm --data '[
 
 ### Update several pages at once
 
+`data` is passed directly to the Notion PATCH /pages endpoint — use `properties` key:
+
 ```bash
 notion batch --llm --data '[
-  {"op":"update","type":"page","id":"<id1>","data":{"Status":"Done"}},
-  {"op":"update","type":"page","id":"<id2>","data":{"Status":"Done"}},
-  {"op":"update","type":"page","id":"<id3>","data":{"Assignee":"<user_id>"}}
+  {"op":"update","type":"page","id":"<id1>","data":{"properties":{"Status":{"status":{"name":"Done"}}}}},
+  {"op":"update","type":"page","id":"<id2>","data":{"properties":{"Status":{"status":{"name":"Done"}}}}},
+  {"op":"update","type":"page","id":"<id3>","data":{"properties":{"Assignee":{"people":[{"id":"<user_id>"}]}}}}
 ]'
 ```
 
@@ -80,8 +84,8 @@ Useful when you need context before creating:
 
 ```bash
 notion batch --llm --data '[
-  {"op":"query","type":"database","id":"<projects_db>","data":{"limit":5}},
-  {"op":"create","type":"page","parent":"<tasks_db>","data":{"title":"New task linked to project","Status":"Todo"}}
+  {"op":"query","type":"database","id":"<projects_db>","data":{"page_size":5}},
+  {"op":"create","type":"page","parent":"<tasks_db>","data":{"properties":{"Name":{"title":[{"text":{"content":"New task"}}]},"Status":{"status":{"name":"Todo"}}}}}
 ]'
 ```
 
@@ -95,8 +99,8 @@ notion find "todo unassigned" -d <tasks_db> --json | jq '.[].id'
 
 # Step 2 — batch update them
 notion batch --llm --data '[
-  {"op":"update","type":"page","id":"<id1>","data":{"Assignee":"<user_id>"}},
-  {"op":"update","type":"page","id":"<id2>","data":{"Assignee":"<user_id>"}}
+  {"op":"update","type":"page","id":"<id1>","data":{"properties":{"Assignee":{"people":[{"id":"<user_id>"}]}}}},
+  {"op":"update","type":"page","id":"<id2>","data":{"properties":{"Assignee":{"people":[{"id":"<user_id>"}]}}}}
 ]'
 ```
 
