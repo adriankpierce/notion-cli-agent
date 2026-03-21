@@ -72,6 +72,7 @@ export interface PropertySchema {
 }
 
 export interface Database {
+  object?: 'database';
   id: string;
   title?: { plain_text: string }[];
   description?: { plain_text: string }[];

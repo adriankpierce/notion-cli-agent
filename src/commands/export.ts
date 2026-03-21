@@ -8,10 +8,10 @@ import * as path from 'path';
 import {
   richTextToMarkdown,
 } from '../utils/markdown.js';
-import { queryDatabase } from '../utils/database-resolver.js';
+import { queryAllPages } from '../utils/database-resolver.js';
 import { blocksToMarkdownAsync } from '../utils/notion-helpers.js';
 import { withErrorHandler } from '../utils/command-handler.js';
-import type { RichText, Block, Page, PaginatedResponse } from '../types/notion.js';
+import type { RichText, Block, Page } from '../types/notion.js';
 
 function getPageTitle(page: Page): string {
   const props = page.properties;
@@ -227,49 +227,36 @@ export function registerExportCommand(program: Command): void {
           fs.mkdirSync(outputFolder, { recursive: true });
         }
         
-        // Query database
-        const body: Record<string, unknown> = {};
-        if (options.limit) body.page_size = parseInt(options.limit, 10);
-        if (options.filter) body.filter = JSON.parse(options.filter);
-        
-        let cursor: string | undefined;
+        // Query all pages from database
+        const pages = await queryAllPages(client, databaseId, {
+          filter: options.filter ? JSON.parse(options.filter) : undefined,
+          limit: options.limit ? parseInt(options.limit, 10) : undefined,
+          onProgress: (n) => process.stdout.write(`\r📄 Fetching ${n} pages...`),
+        });
+
         let exported = 0;
-        
-        do {
-          if (cursor) body.start_cursor = cursor;
-          
-          const result = await queryDatabase<PaginatedResponse<Page>>(client, databaseId, body);
-          
-          for (const page of result.results) {
-            const title = getPageTitle(page);
-            const filename = sanitizeFilename(title) + '.md';
-            const filepath = path.join(outputFolder, filename);
-            
-            let content = generateFrontmatter(page);
-            content += `# ${title}\n\n`;
-            
-            if (options.content) {
-              try {
-                const pageContent = await blocksToMarkdownAsync(client, page.id);
-                content += pageContent;
-              } catch {
-                content += `<!-- Failed to fetch content -->\n`;
-              }
+        for (const page of pages) {
+          const title = getPageTitle(page);
+          const filename = sanitizeFilename(title) + '.md';
+          const filepath = path.join(outputFolder, filename);
+
+          let content = generateFrontmatter(page);
+          content += `# ${title}\n\n`;
+
+          if (options.content) {
+            try {
+              const pageContent = await blocksToMarkdownAsync(client, page.id);
+              content += pageContent;
+            } catch {
+              content += `<!-- Failed to fetch content -->\n`;
             }
-            
-            fs.writeFileSync(filepath, content);
-            exported++;
-            process.stdout.write(`\r📄 Exported ${exported} pages...`);
           }
-          
-          cursor = result.has_more ? result.next_cursor : undefined;
-          
-          // Respect limit
-          if (options.limit && exported >= parseInt(options.limit, 10)) {
-            cursor = undefined;
-          }
-        } while (cursor);
-        
+
+          fs.writeFileSync(filepath, content);
+          exported++;
+          process.stdout.write(`\r📄 Exported ${exported}/${pages.length} pages...`);
+        }
+
         console.log(`\n✅ Exported ${exported} pages to ${outputFolder}`);
     }));
 }

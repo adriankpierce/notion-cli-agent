@@ -300,7 +300,7 @@ describe('Export Command', () => {
 
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {});
+      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', { page_size: 100 });
       expect(mockFS.has('/vault/Test Page.md')).toBe(true);
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Exported 2 pages'));
     });
@@ -332,7 +332,8 @@ describe('Export Command', () => {
 
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault', '--limit', '2']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', { page_size: 2 });
+      // queryAllPages uses page_size 100 internally, limit is applied post-fetch
+      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', { page_size: 100 });
     });
 
     it('should apply --filter option', async () => {
@@ -344,6 +345,7 @@ describe('Export Command', () => {
 
       expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
         filter: { property: 'Status', status: { equals: 'Done' } },
+        page_size: 100,
       });
     });
 

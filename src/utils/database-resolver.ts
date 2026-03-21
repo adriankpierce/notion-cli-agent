@@ -304,6 +304,7 @@ function normalizeToDatabase(
   id: string,
 ): Database {
   return {
+    object: 'database' as const,
     id: (ds.id as string) || id,
     title: ds.title as Database['title'],
     description: ds.description as Database['description'],
