@@ -87,12 +87,13 @@ function frontMatterToProperties(
   frontMatter: FrontMatter,
   schema: Record<string, PropertySchema>,
   titlePropName: string
-): Record<string, unknown> {
+): { properties: Record<string, unknown>; skipped: string[] } {
   const properties: Record<string, unknown> = {};
+  const skippedProps: string[] = [];
   
   for (const [key, value] of Object.entries(frontMatter)) {
-    // Skip notion-specific metadata
-    if (key === 'notion_id' || key === 'notion_url') continue;
+    // Skip notion-specific metadata and title (handled separately by caller)
+    if (key === 'notion_id' || key === 'notion_url' || key === 'title') continue;
     
     // Find matching property (case-insensitive, underscores to spaces)
     let propName: string | null = null;
@@ -108,8 +109,11 @@ function frontMatterToProperties(
       }
     }
     
-    if (!propName || !propSchema) continue;
-    
+    if (!propName || !propSchema) {
+      skippedProps.push(key);
+      continue;
+    }
+
     // Convert value based on property type
     switch (propSchema.type) {
       case 'title':
@@ -117,13 +121,13 @@ function frontMatterToProperties(
           title: [{ text: { content: String(value) } }],
         };
         break;
-      
+
       case 'rich_text':
         properties[propName] = {
           rich_text: [{ text: { content: String(value) } }],
         };
         break;
-      
+
       case 'number':
         properties[propName] = { number: Number(value) || null };
         break;
@@ -160,10 +164,19 @@ function frontMatterToProperties(
       case 'email':
         properties[propName] = { email: String(value) || null };
         break;
+
+      case 'phone_number':
+        properties[propName] = { phone_number: String(value) || null };
+        break;
+
+      default:
+        // Unsupported types: people, relation, files, formula, rollup, created_by, etc.
+        skippedProps.push(`${propName} (${propSchema.type})`);
+        break;
     }
   }
-  
-  return properties;
+
+  return { properties, skipped: skippedProps };
 }
 
 // Find title property in schema
@@ -279,25 +292,38 @@ export function registerImportCommand(program: Command): void {
             const title = (frontMatter.title as string) || path.basename(file, '.md');
             
             // Convert frontmatter to properties
-            const properties = frontMatterToProperties(frontMatter, db.properties, titleProp);
-            
+            const { properties, skipped } = frontMatterToProperties(frontMatter, db.properties, titleProp);
+
+            if (skipped.length > 0) {
+              console.warn(`\n⚠️ ${path.basename(file)}: skipped unsupported properties: ${skipped.join(', ')}`);
+            }
+
             // Add title
             properties[titleProp] = {
               title: [{ text: { content: title } }],
             };
-            
+
             // Create page
             const pageData: Record<string, unknown> = {
               parent: { database_id: options.to },
               properties,
             };
             
-            // Add content if requested
-            if (options.content && body.trim()) {
-              pageData.children = markdownToBlocks(body).slice(0, 100); // Notion limit
+            // Add content if requested — chunk at 100 blocks (Notion API limit per request)
+            const contentBlocks = (options.content && body.trim()) ? markdownToBlocks(body) : [];
+
+            // First 100 blocks can be included in the create request
+            if (contentBlocks.length > 0) {
+              pageData.children = contentBlocks.slice(0, 100);
             }
-            
-            await client.post('pages', pageData);
+
+            const createdPage = await client.post('pages', pageData) as { id: string };
+
+            // Append remaining blocks in chunks of 100
+            for (let i = 100; i < contentBlocks.length; i += 100) {
+              const chunk = contentBlocks.slice(i, i + 100);
+              await client.patch(`blocks/${createdPage.id}/children`, { children: chunk });
+            }
             imported++;
             process.stdout.write(`\r📥 Imported ${imported}/${files.length}...`);
           } catch (error) {

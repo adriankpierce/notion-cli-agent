@@ -244,9 +244,95 @@ Task 3,Todo,Low,2026-03-01`;
     });
   });
 
-  // Obsidian vault import tests skipped due to complex fs recursive operations
-  // The obsidian command requires recursive directory traversal and complex file handling
-  // that is difficult to mock comprehensively. Core functionality is tested via markdown tests.
+  describe('import obsidian', () => {
+    it('should chunk content blocks beyond 100 when importing with --content', async () => {
+      // Generate a markdown file with >100 blocks (each line = 1 paragraph block)
+      const lines = Array.from({ length: 150 }, (_, i) => `Paragraph ${i + 1}`);
+      const bigNote = `---\ntitle: "Big Note"\n---\n\n${lines.join('\n\n')}`;
+
+      // Set up vault with one big file
+      mockFS.set('/vault', '<dir>');
+      mockFS.set('/vault/big-note.md', bigNote);
+
+      // Override readdirSync to support withFileTypes option
+      const fs = await import('fs');
+      (fs.readdirSync as any).mockImplementation((dir: string, opts?: any) => {
+        const prefix = dir.endsWith('/') ? dir : dir + '/';
+        const entries = Array.from(mockFS.keys())
+          .filter(k => k.startsWith(prefix) && !k.substring(prefix.length).includes('/'))
+          .map(k => k.substring(prefix.length));
+
+        if (opts?.withFileTypes) {
+          return entries.map(name => ({
+            name,
+            isFile: () => !mockFS.get(prefix + name)?.startsWith('<dir>'),
+            isDirectory: () => mockFS.get(prefix + name)?.startsWith('<dir>'),
+          }));
+        }
+        return entries;
+      });
+
+      // Set up database resolution
+      setupDatabaseResolution(mockClient);
+
+      // Page creation returns an id for subsequent block appends
+      mockClient.post.mockResolvedValue({ id: 'new-page-123' });
+      mockClient.patch.mockResolvedValue({ results: [] });
+
+      await program.parseAsync(['node', 'test', 'import', 'obsidian', '/vault', '--to', 'db-123', '--content']);
+
+      // First 100 blocks go in the create call as children
+      const createCall = mockClient.post.mock.calls.find(
+        (c: any[]) => c[0] === 'pages'
+      );
+      expect(createCall).toBeDefined();
+      expect(createCall[1].children.length).toBe(100);
+
+      // Remaining blocks go via patch (append)
+      const appendCalls = mockClient.patch.mock.calls.filter(
+        (c: any[]) => c[0] === 'blocks/new-page-123/children'
+      );
+      expect(appendCalls.length).toBeGreaterThanOrEqual(1);
+      // Total appended blocks should be 50 (150 - 100)
+      const appendedCount = appendCalls.reduce(
+        (sum: number, c: any[]) => sum + c[1].children.length, 0
+      );
+      expect(appendedCount).toBe(50);
+    });
+
+    it('should not warn about title in frontmatter', async () => {
+      const note = `---\ntitle: "My Note"\nstatus: "Draft"\n---\n\nContent here.`;
+
+      mockFS.set('/vault', '<dir>');
+      mockFS.set('/vault/note.md', note);
+
+      const fs = await import('fs');
+      (fs.readdirSync as any).mockImplementation((dir: string, opts?: any) => {
+        const prefix = dir.endsWith('/') ? dir : dir + '/';
+        const entries = Array.from(mockFS.keys())
+          .filter(k => k.startsWith(prefix) && !k.substring(prefix.length).includes('/'))
+          .map(k => k.substring(prefix.length));
+        if (opts?.withFileTypes) {
+          return entries.map(name => ({
+            name,
+            isFile: () => !mockFS.get(prefix + name)?.startsWith('<dir>'),
+            isDirectory: () => mockFS.get(prefix + name)?.startsWith('<dir>'),
+          }));
+        }
+        return entries;
+      });
+
+      setupDatabaseResolution(mockClient);
+      mockClient.post.mockResolvedValue({ id: 'page-1' });
+
+      await program.parseAsync(['node', 'test', 'import', 'obsidian', '/vault', '--to', 'db-123']);
+
+      // Should not warn about "title" being unsupported
+      expect(console.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('title')
+      );
+    });
+  });
 
   describe('Error handling', () => {
     it('should handle markdown import API errors', async () => {

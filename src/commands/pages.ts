@@ -29,7 +29,7 @@ export function registerPagesCommand(program: Command): void {
       const page = await client.get(`pages/${pageId}`);
 
       if (options.content) {
-        const blocks = await client.get(`blocks/${pageId}/children`);
+        const blocks = await fetchAllBlocks(client, pageId);
         if (options.json) {
           console.log(formatOutput({ page, blocks }));
         } else {

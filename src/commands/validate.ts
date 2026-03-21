@@ -361,13 +361,11 @@ export function registerValidateCommand(program: Command): void {
           }
         }
 
-        // Check for duplicate titles (requires fetching entries)
-        const allEntries = await queryDatabase<{ results: Page[] }>(client, databaseId, {
-          page_size: 100,
-        });
+        // Check for duplicate titles (fetch all entries for accuracy)
+        const allPages = await queryAllPages(client, databaseId);
 
         const titleCounts = new Map<string, number>();
-        for (const entry of allEntries.results) {
+        for (const entry of allPages) {
           const title = getPageTitle(entry).toLowerCase().trim();
           if (title && title !== 'untitled') {
             titleCounts.set(title, (titleCounts.get(title) || 0) + 1);
@@ -399,13 +397,12 @@ export function registerValidateCommand(program: Command): void {
         const db = await getDatabaseSchema(client, databaseId);
         const dbTitle = getDbTitle(db);
 
-        // Query recent entries
-        const result = await queryDatabase<{ results: Page[] }>(client, databaseId, {
-          page_size: 100,
-          sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
+        // Fetch all entries for accurate health scoring
+        const entries = await queryAllPages(client, databaseId, {
+          sorts: [{ timestamp: 'last_edited_time', direction: 'descending' } as any],
+          onProgress: (n) => process.stdout.write(`\rFetching entries: ${n}...`),
         });
-        
-        const entries = result.results;
+        if (entries.length > 0) process.stdout.write('\r');
         
         // Calculate metrics
         const now = new Date();
@@ -449,19 +446,32 @@ export function registerValidateCommand(program: Command): void {
           fillRates[propName] = entries.length > 0 ? Math.round((filled / entries.length) * 100) : 0;
         }
         
-        // Calculate health score
+        // Calculate health score (handle empty databases)
+        if (entries.length === 0) {
+          console.log(`\n📊 Health Report: ${dbTitle}\n`);
+          console.log(`${'═'.repeat(40)}`);
+          console.log(`Health Score: 0/100 🔴`);
+          console.log(`${'═'.repeat(40)}\n`);
+          console.log('Database is empty — no entries to analyze.');
+          return;
+        }
+
         const activityScore = Math.min(100, (recentlyEdited / entries.length) * 100 * 2);
-        const avgFillRate = Object.values(fillRates).reduce((a, b) => a + b, 0) / Object.values(fillRates).length;
-        
+        const fillRateValues = Object.values(fillRates);
+        const avgFillRate = fillRateValues.length > 0
+          ? fillRateValues.reduce((a, b) => a + b, 0) / fillRateValues.length
+          : 0;
+
         const healthScore = Math.round((activityScore * 0.3) + (avgFillRate * 0.5) + (completionRate * 0.2));
-        
+
         // Output
         console.log(`\n📊 Health Report: ${dbTitle}\n`);
         console.log(`${'═'.repeat(40)}`);
         console.log(`Health Score: ${healthScore}/100 ${healthScore >= 80 ? '🟢' : healthScore >= 50 ? '🟡' : '🔴'}`);
         console.log(`${'═'.repeat(40)}\n`);
-        
-        console.log(`📈 Activity (last 7 days): ${recentlyEdited}/${entries.length} entries (${Math.round(recentlyEdited/entries.length*100)}%)`);
+
+        const activityPct = Math.round((recentlyEdited / entries.length) * 100);
+        console.log(`📈 Activity (last 7 days): ${recentlyEdited}/${entries.length} entries (${activityPct}%)`);
         console.log(`✅ Completion rate: ${completionRate}%`);
         console.log(`📝 Average fill rate: ${Math.round(avgFillRate)}%\n`);
         
