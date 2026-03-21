@@ -47,10 +47,12 @@ notion ai prompt <db_id>                        # DB-specific agent instructions
 ### Query
 ```bash
 notion search "keyword" --limit 10
-notion db query <db_id> --limit 20
-notion db query <db_id> --limit 20 --json
-notion find "overdue tasks unassigned" -d <db_id> --llm   # natural language
-notion find "high priority" -d <db_id> --explain          # preview filter, don't run
+notion search "Exact Title" --exact --first --json         # deterministic lookup
+notion search "task" --db <db_id> --llm                    # filter by parent DB
+notion db query <db_id> --title "Known Page"               # exact title filter
+notion db query <db_id> --limit 20 --llm                   # compact output
+notion find "overdue tasks unassigned" -d <db_id> --llm    # natural language
+notion find "high priority" -d <db_id> --explain           # preview filter, don't run
 ```
 
 ### Read pages
@@ -65,8 +67,10 @@ notion ai extract <page_id> --schema "email,phone,date"
 ### Write pages
 ```bash
 notion page create --parent <db_id> --title "Task Name"
-notion page create --parent <db_id> --title "Task" --prop "Status=Todo" --prop "Priority=High"
-notion page update <page_id> --prop "Status=Done"
+notion page create --parent <db_id> --title "Task" --prop "Status:status=Todo" --prop "Priority:select=High"
+notion page update <page_id> --prop "Status:status=Done"
+notion page update <page_id> --clear-prop "Assignee"       # type-aware clear
+notion page update <page_id> --clear-prop "Tags" --clear-prop "Deadline"
 ```
 
 ### Add blocks

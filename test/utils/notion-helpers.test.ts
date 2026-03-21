@@ -5,6 +5,8 @@ import {
   getDbTitle,
   getDbDescription,
   getPropertyValue,
+  resolvePropertyName,
+  buildClearPayload,
 } from '../../src/utils/notion-helpers';
 import type { Block, Page, Database } from '../../src/types/notion';
 
@@ -362,5 +364,93 @@ describe('getPropertyValue()', () => {
       const prop = { type: 'unknown_type', unknown_type: 'value' };
       expect(getPropertyValue(prop)).toBeNull();
     });
+  });
+});
+
+describe('resolvePropertyName()', () => {
+  const schema = {
+    'Status': { type: 'status' },
+    'Due Date': { type: 'date' },
+    'Persona encargada': { type: 'people' },
+    'OKR vinculados': { type: 'relation' },
+  };
+
+  it('should resolve exact match', () => {
+    expect(resolvePropertyName(schema, 'Status')).toBe('Status');
+  });
+
+  it('should resolve case-insensitive match', () => {
+    expect(resolvePropertyName(schema, 'status')).toBe('Status');
+    expect(resolvePropertyName(schema, 'STATUS')).toBe('Status');
+  });
+
+  it('should resolve with collapsed whitespace', () => {
+    expect(resolvePropertyName(schema, 'due_date')).toBe('Due Date');
+    expect(resolvePropertyName(schema, 'due date')).toBe('Due Date');
+    expect(resolvePropertyName(schema, 'Due_Date')).toBe('Due Date');
+  });
+
+  it('should resolve accented properties case-insensitively', () => {
+    expect(resolvePropertyName(schema, 'persona encargada')).toBe('Persona encargada');
+  });
+
+  it('should return null for no match', () => {
+    expect(resolvePropertyName(schema, 'nonexistent')).toBeNull();
+  });
+
+  it('should prefer exact match over case-insensitive', () => {
+    const ambiguous = { 'name': { type: 'text' }, 'Name': { type: 'title' } };
+    expect(resolvePropertyName(ambiguous, 'Name')).toBe('Name');
+    expect(resolvePropertyName(ambiguous, 'name')).toBe('name');
+  });
+});
+
+describe('buildClearPayload()', () => {
+  it('should return empty array for people', () => {
+    expect(buildClearPayload('people')).toEqual({ people: [] });
+  });
+
+  it('should return empty array for relation', () => {
+    expect(buildClearPayload('relation')).toEqual({ relation: [] });
+  });
+
+  it('should return empty array for multi_select', () => {
+    expect(buildClearPayload('multi_select')).toEqual({ multi_select: [] });
+  });
+
+  it('should return empty array for rich_text', () => {
+    expect(buildClearPayload('rich_text')).toEqual({ rich_text: [] });
+  });
+
+  it('should return null for date', () => {
+    expect(buildClearPayload('date')).toEqual({ date: null });
+  });
+
+  it('should return null for select', () => {
+    expect(buildClearPayload('select')).toEqual({ select: null });
+  });
+
+  it('should return null for number', () => {
+    expect(buildClearPayload('number')).toEqual({ number: null });
+  });
+
+  it('should return null for url', () => {
+    expect(buildClearPayload('url')).toEqual({ url: null });
+  });
+
+  it('should return false for checkbox', () => {
+    expect(buildClearPayload('checkbox')).toEqual({ checkbox: false });
+  });
+
+  it('should throw for status', () => {
+    expect(() => buildClearPayload('status')).toThrow('Cannot clear status');
+  });
+
+  it('should throw for title', () => {
+    expect(() => buildClearPayload('title')).toThrow('Cannot clear title');
+  });
+
+  it('should throw for unsupported types', () => {
+    expect(() => buildClearPayload('formula')).toThrow('unsupported type');
   });
 });

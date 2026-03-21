@@ -118,6 +118,67 @@ export function getDbDescription(db: Database): string {
   return db.description?.map(t => t.plain_text).join('') || '';
 }
 
+// ─── Property name resolution ────────────────────────────────────────────────
+
+/**
+ * Resolve a user-supplied property name against the schema.
+ * Tries: exact match → case-insensitive → normalized (collapsed whitespace).
+ * Returns the canonical schema name or null if no match.
+ */
+export function resolvePropertyName(
+  schema: Record<string, unknown>,
+  input: string,
+): string | null {
+  // Exact match
+  if (input in schema) return input;
+
+  const lowerInput = input.toLowerCase().trim();
+
+  // Case-insensitive match
+  for (const name of Object.keys(schema)) {
+    if (name.toLowerCase() === lowerInput) return name;
+  }
+
+  // Normalized match (collapse whitespace, underscores → spaces)
+  const normalizedInput = lowerInput.replace(/[_\s]+/g, ' ');
+  for (const name of Object.keys(schema)) {
+    const normalizedName = name.toLowerCase().replace(/[_\s]+/g, ' ').trim();
+    if (normalizedName === normalizedInput) return name;
+  }
+
+  return null;
+}
+
+/**
+ * Generate the correct empty/null payload to clear a property based on its type.
+ * Throws for status (Notion doesn't allow clearing status).
+ */
+export function buildClearPayload(propType: string): unknown {
+  switch (propType) {
+    case 'people':
+    case 'relation':
+    case 'multi_select':
+    case 'rich_text':
+    case 'files':
+      return { [propType]: [] };
+    case 'date':
+    case 'select':
+    case 'number':
+    case 'url':
+    case 'email':
+    case 'phone_number':
+      return { [propType]: null };
+    case 'checkbox':
+      return { checkbox: false };
+    case 'status':
+      throw new Error('Cannot clear status property — Notion requires a valid status value');
+    case 'title':
+      throw new Error('Cannot clear title property — pages must have a title');
+    default:
+      throw new Error(`Cannot clear property of type "${propType}" — unsupported type`);
+  }
+}
+
 // ─── Parent helpers (v2025-09-03 compat) ────────────────────────────────────
 
 /**

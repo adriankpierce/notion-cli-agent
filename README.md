@@ -154,6 +154,10 @@ notion search "project plan"
 notion search "meeting" --type page
 notion search "" --type database    # List all databases
 
+# Deterministic search (for agents)
+notion search "Known Title" --exact --first --json  # One result or exit 1
+notion search "task" --db <db_id>                   # Filter by parent database
+
 # Get page info
 notion page get <page_id>
 notion page get <page_id> --content  # Include blocks
@@ -166,10 +170,10 @@ notion page create --parent <db_id> --title "Bug Fix" \
 notion page create --parent <db_id> --title "Meeting Notes" --icon 📝
 
 # Update page
-notion page update <page_id> --prop "Status=Done"
+notion page update <page_id> --prop "Status:status=Done"
 notion page update <page_id> --title "New Title"
 notion page update <page_id> --icon 🚀
-notion page update <page_id> --prop "Status=Done" --icon ✅
+notion page update <page_id> --clear-prop "Assignee"  # Type-aware clear
 
 # Archive page
 notion page archive <page_id>

@@ -359,6 +359,35 @@ describe('Databases Command', () => {
     });
   });
 
+  describe('--title flag', () => {
+    it('should auto-detect title property and filter by exact title', async () => {
+      // First resolution (for --title schema lookup), then another for query
+      setupDatabaseResolution(mockClient);
+      // The resolver caches, so query uses cached resolution
+      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
+
+      await program.parseAsync(['node', 'test', 'database', 'query', 'db-123', '--title', 'My Task']);
+
+      expect(mockClient.post).toHaveBeenCalledWith(
+        'data_sources/ds-456/query',
+        expect.objectContaining({
+          filter: { property: 'Name', title: { equals: 'My Task' } },
+        })
+      );
+    });
+  });
+
+  describe('--llm flag on query', () => {
+    it('should output compact format', async () => {
+      setupDatabaseResolution(mockClient);
+      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
+
+      await program.parseAsync(['node', 'test', 'database', 'query', 'db-123', '--llm']);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('page-123 Test Page'));
+    });
+  });
+
   describe('Error handling', () => {
     it('should handle get errors', async () => {
       mockClient.get.mockRejectedValue(new Error('Database not found'));

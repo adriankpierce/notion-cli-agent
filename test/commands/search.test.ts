@@ -213,6 +213,109 @@ describe('Search Command', () => {
     });
   });
 
+  describe('--first flag', () => {
+    it('should return only the first result', async () => {
+      const result = createPaginatedResult([
+        createMockPage('page-1', 'First'),
+        createMockPage('page-2', 'Second'),
+      ]);
+      mockClient.post.mockResolvedValue(result);
+
+      await program.parseAsync(['node', 'test', 'search', 'test', '--first']);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('First'));
+      expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('Second'));
+    });
+
+    it('should exit 1 when no results and --first', async () => {
+      mockClient.post.mockResolvedValue(createPaginatedResult([]));
+
+      await expect(
+        program.parseAsync(['node', 'test', 'search', 'nonexistent', '--first'])
+      ).rejects.toThrow('process.exit(1)');
+    });
+
+    it('should output single object in JSON mode with --first', async () => {
+      const result = createPaginatedResult([createMockPage('page-1', 'Only')]);
+      mockClient.post.mockResolvedValue(result);
+
+      await program.parseAsync(['node', 'test', 'search', 'test', '--first', '--json']);
+
+      const output = (console.log as any).mock.calls[0][0];
+      const parsed = JSON.parse(output);
+      expect(parsed.id).toBe('page-1');
+      expect(parsed.object).toBe('page');
+    });
+  });
+
+  describe('--db flag', () => {
+    it('should filter results to pages from specified database', async () => {
+      const page1 = { ...createMockPage('page-1', 'Match'), parent: { type: 'data_source_id', data_source_id: 'ds-1', database_id: 'db-target' } };
+      const page2 = { ...createMockPage('page-2', 'Other'), parent: { type: 'data_source_id', data_source_id: 'ds-2', database_id: 'db-other' } };
+      mockClient.post.mockResolvedValue(createPaginatedResult([page1, page2]));
+
+      await program.parseAsync(['node', 'test', 'search', 'test', '--db', 'db-target']);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Match'));
+      expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('Other'));
+    });
+
+    it('should show no results when --db matches nothing', async () => {
+      const page1 = { ...createMockPage('page-1', 'Page'), parent: { type: 'data_source_id', database_id: 'db-other' } };
+      mockClient.post.mockResolvedValue(createPaginatedResult([page1]));
+
+      await program.parseAsync(['node', 'test', 'search', 'test', '--db', 'db-none']);
+
+      expect(console.log).toHaveBeenCalledWith('No results found.');
+    });
+  });
+
+  describe('--exact flag', () => {
+    it('should filter to exact title matches only', async () => {
+      const page1 = createMockPage('page-1', 'Project Alpha');
+      const page2 = createMockPage('page-2', 'Project Alpha Beta');
+      mockClient.post.mockResolvedValue(createPaginatedResult([page1, page2]));
+
+      await program.parseAsync(['node', 'test', 'search', 'Project Alpha', '--exact']);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Project Alpha'));
+      expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('Beta'));
+    });
+
+    it('should be case-insensitive for exact matching', async () => {
+      const page1 = createMockPage('page-1', 'My Task');
+      mockClient.post.mockResolvedValue(createPaginatedResult([page1]));
+
+      await program.parseAsync(['node', 'test', 'search', 'my task', '--exact']);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('My Task'));
+    });
+  });
+
+  describe('--llm flag', () => {
+    it('should output compact format', async () => {
+      const result = createPaginatedResult([
+        createMockPage('page-1', 'Task One'),
+        createMockPage('page-2', 'Task Two'),
+      ]);
+      mockClient.post.mockResolvedValue(result);
+
+      await program.parseAsync(['node', 'test', 'search', 'task', '--llm']);
+
+      expect(console.log).toHaveBeenCalledWith('[page] page-1 Task One');
+      expect(console.log).toHaveBeenCalledWith('[page] page-2 Task Two');
+    });
+
+    it('should show db type for databases', async () => {
+      const result = createPaginatedResult([createMockDatabase('db-1', 'My DB')]);
+      mockClient.post.mockResolvedValue(result);
+
+      await program.parseAsync(['node', 'test', 'search', 'db', '--llm']);
+
+      expect(console.log).toHaveBeenCalledWith('[db] db-1 My DB');
+    });
+  });
+
   describe('Combined options', () => {
     it('should handle multiple options together', async () => {
       mockClient.post.mockResolvedValue(mockSearchResult);

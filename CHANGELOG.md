@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`page update --clear-prop`** — type-aware property clearing. Generates correct empty payloads per property type (empty array for people/relation/multi_select, null for date/select/number, rejects status/title).
+- **`search --first`** — return one result or exit 1, for deterministic agent lookups.
+- **`search --db <id>`** — post-filter search results to pages in a specific database.
+- **`search --exact`** — case-insensitive exact title match filter.
+- **`search --llm`** — compact output: `[type] id title`.
+- **`db query --title <value>`** — auto-detects title property from schema and builds exact title filter.
+- **`db query --llm`** — compact output: `id title`.
+- **`resolvePropertyName()`** — case-insensitive, whitespace-tolerant property name matching for `--prop`, `--clear-prop`, and `--filter-prop`.
+
 ## [0.9.1] - 2026-03-21
 
 ### Fixed

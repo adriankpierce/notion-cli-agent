@@ -6,7 +6,8 @@ import { getClient } from '../client.js';
 import { formatOutput, formatDatabaseTitle, parseFilter } from '../utils/format.js';
 import { getDatabaseSchema, queryDatabase, updateDatabase } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
-import type { Database, PaginatedResponse } from '../types/notion.js';
+import { getPageTitle } from '../utils/notion-helpers.js';
+import type { Database, PaginatedResponse, Page } from '../types/notion.js';
 
 export function registerDatabasesCommand(program: Command): void {
   const databases = program
@@ -47,18 +48,31 @@ export function registerDatabasesCommand(program: Command): void {
     .option('--filter-prop-type <propType>', 'Property type: select, status, text, number, date, checkbox (repeatable)', (v, a: string[]) => [...a, v], [] as string[])
     .option('-s, --sort <property>', 'Sort by property')
     .option('--sort-dir <direction>', 'Sort direction: asc, desc', 'desc')
+    .option('--title <value>', 'Filter by exact title (auto-detects title property)')
     .option('-l, --limit <number>', 'Max results', '100')
     .option('--cursor <cursor>', 'Pagination cursor')
+    .option('--llm', 'Compact LLM-friendly output')
     .option('-j, --json', 'Output raw JSON')
     .action(withErrorHandler(async (databaseId: string, options) => {
       const client = getClient();
 
       const body: Record<string, unknown> = {};
 
+      // Handle --title shortcut (auto-detects title property from schema)
+      if (options.title) {
+        const db = await getDatabaseSchema(client, databaseId);
+        const titlePropName = Object.entries(db.properties)
+          .find(([, p]) => p.type === 'title')?.[0] || 'Name';
+        body.filter = {
+          property: titlePropName,
+          title: { equals: options.title },
+        };
+      }
+
       // Handle filter
-      if (options.filter) {
+      if (!body.filter && options.filter) {
         body.filter = JSON.parse(options.filter);
-      } else if (options.filterProp.length > 0) {
+      } else if (!body.filter && options.filterProp.length > 0) {
         const props: string[] = options.filterProp;
         const types: string[] = options.filterType;
         const values: string[] = options.filterValue;
@@ -96,6 +110,18 @@ export function registerDatabasesCommand(program: Command): void {
 
       if (options.json) {
         console.log(formatOutput(result));
+        return;
+      }
+
+      // --llm: compact output
+      if (options.llm) {
+        for (const item of result.results) {
+          const title = getItemTitle(item);
+          console.log(`${item.id} ${title}`);
+        }
+        if (result.has_more) {
+          console.log(`(more results, cursor: ${result.next_cursor})`);
+        }
         return;
       }
 
