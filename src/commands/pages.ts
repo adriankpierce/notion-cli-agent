@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import { getClient } from '../client.js';
 import { formatOutput, formatPageTitle, parseProperties } from '../utils/format.js';
 import { markdownToBlocks } from '../utils/markdown.js';
-import { blocksToMarkdownAsync, fetchAllBlocks, getPageTitle, isParentDatabase, getParentDatabaseId } from '../utils/notion-helpers.js';
+import { blocksToMarkdownAsync, fetchAllBlocks, getPageTitle, isParentDatabase, getParentDatabaseId, resolvePropertyName, buildClearPayload } from '../utils/notion-helpers.js';
 import { getDatabaseSchema } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Page } from '../types/notion.js';
@@ -140,6 +140,7 @@ export function registerPagesCommand(program: Command): void {
     .option('-t, --title <title>', 'Rename the page title')
     .option('--title-prop <name>', 'Name of title property (auto-detected if not set)')
     .option('-p, --prop <key=value...>', 'Set property (can be used multiple times)')
+    .option('--clear-prop <name...>', 'Clear a property (type-aware, e.g., --clear-prop "Assignee")')
     .option('--archive', 'Archive the page')
     .option('--unarchive', 'Unarchive the page')
     .option('--icon <emoji>', 'Set page icon (emoji character, e.g. 📝)')
@@ -189,6 +190,26 @@ export function registerPagesCommand(program: Command): void {
         if (options.prop) {
           const parsed = parseProperties(options.prop);
           Object.assign(properties, parsed);
+        }
+
+        // Handle --clear-prop: fetch schema to determine property type
+        if (options.clearProp && options.clearProp.length > 0) {
+          const page = await client.get(`pages/${pageId}`) as Page;
+          const parentDbId = getParentDatabaseId(page.parent);
+          if (!parentDbId) {
+            console.error('Error: --clear-prop requires a database-backed page');
+            process.exit(1);
+          }
+          const db = await getDatabaseSchema(client, parentDbId);
+          for (const rawName of options.clearProp) {
+            const resolved = resolvePropertyName(db.properties, rawName);
+            if (!resolved) {
+              console.error(`Error: Property "${rawName}" not found in database schema`);
+              process.exit(1);
+            }
+            const propSchema = db.properties[resolved];
+            properties[resolved] = buildClearPayload(propSchema.type);
+          }
         }
 
         if (Object.keys(properties).length > 0) {
