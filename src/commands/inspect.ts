@@ -21,6 +21,14 @@ interface StatusGroup {
   option_ids: string[];
 }
 
+interface DatabaseWithDataSources extends Database {
+  data_sources?: { id: string; name: string }[];
+}
+
+function isMultiDataSource(db: DatabaseWithDataSources): boolean {
+  return Array.isArray(db.data_sources) && db.data_sources.length > 0;
+}
+
 function formatPropertyType(prop: PropertySchema): string {
   const type = prop.type;
   const data = prop[type] as Record<string, unknown> | undefined;
@@ -94,45 +102,57 @@ export function registerInspectCommand(program: Command): void {
         const result = await client.post('search', {
           filter: { property: 'object', value: 'database' },
           page_size: parseInt(options.limit, 10),
-        }) as { results: Database[] };
-        
+        }) as { results: DatabaseWithDataSources[] };
+
         if (options.json) {
           console.log(formatOutput(result.results));
           return;
         }
-        
+
         console.log(`Found ${result.results.length} accessible database(s):\n`);
-        
+
         for (const db of result.results) {
-          const title = getDbTitle(db);
-          const desc = getDbDescription(db);
-          
-          if (options.compact) {
-            console.log(`📊 ${title} (${db.id.slice(0, 8)}...)`);
-            continue;
-          }
-          
-          console.log(`📊 ${title}`);
-          console.log(`   ID: ${db.id}`);
-          if (desc) console.log(`   Description: ${desc}`);
-          
-          // List properties
-          const props = Object.entries(db.properties)
-            .filter(([, p]) => p.type !== 'title') // Skip title, it's obvious
-            .slice(0, 8);
-          
-          if (props.length > 0) {
-            console.log('   Properties:');
-            for (const [name, prop] of props) {
-              console.log(`     - ${name}: ${formatPropertyType(prop)}`);
+          try {
+            const title = getDbTitle(db);
+            const multiSource = isMultiDataSource(db);
+            const multiTag = multiSource ? ' [multi-source]' : '';
+            const desc = getDbDescription(db);
+
+            if (options.compact) {
+              console.log(`📊 ${title} (${db.id.slice(0, 8)}...)${multiTag}`);
+              continue;
             }
-            
-            const totalProps = Object.keys(db.properties).length;
-            if (totalProps > 9) {
-              console.log(`     ... and ${totalProps - 9} more`);
+
+            console.log(`📊 ${title}${multiTag}`);
+            console.log(`   ID: ${db.id}`);
+            if (desc) console.log(`   Description: ${desc}`);
+
+            if (multiSource && db.data_sources) {
+              console.log(`   Data sources: ${db.data_sources.map(ds => ds.id).join(', ')}`);
             }
+
+            // List properties (guard against missing properties on multi-DS)
+            const properties = db.properties || {};
+            const props = Object.entries(properties)
+              .filter(([, p]) => p.type !== 'title')
+              .slice(0, 8);
+
+            if (props.length > 0) {
+              console.log('   Properties:');
+              for (const [name, prop] of props) {
+                console.log(`     - ${name}: ${formatPropertyType(prop)}`);
+              }
+
+              const totalProps = Object.keys(properties).length;
+              if (totalProps > 9) {
+                console.log(`     ... and ${totalProps - 9} more`);
+              }
+            }
+            console.log('');
+          } catch (dbError) {
+            console.warn(`   Warning: could not read database ${db?.id || 'unknown'}: ${(dbError as Error).message}`);
+            console.log('');
           }
-          console.log('');
         }
       } catch (error) {
         console.error('Error:', (error as Error).message);
