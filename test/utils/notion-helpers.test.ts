@@ -7,6 +7,8 @@ import {
   getPropertyValue,
   resolvePropertyName,
   buildClearPayload,
+  buildTrashPayload,
+  buildBlockPosition,
 } from '../../src/utils/notion-helpers';
 import type { Block, Page, Database } from '../../src/types/notion';
 
@@ -452,5 +454,28 @@ describe('buildClearPayload()', () => {
 
   it('should throw for unsupported types', () => {
     expect(() => buildClearPayload('formula')).toThrow('unsupported type');
+  });
+});
+
+describe('buildTrashPayload()', () => {
+  it('should return in_trash: true for trashing', () => {
+    expect(buildTrashPayload(true)).toEqual({ in_trash: true });
+  });
+
+  it('should return in_trash: false for restoring', () => {
+    expect(buildTrashPayload(false)).toEqual({ in_trash: false });
+  });
+});
+
+describe('buildBlockPosition()', () => {
+  it('should return position with after_block for a block ID', () => {
+    expect(buildBlockPosition('block-123')).toEqual({
+      position: { after_block: 'block-123' },
+    });
+  });
+
+  it('should return empty object when no block ID (append at end)', () => {
+    expect(buildBlockPosition()).toEqual({});
+    expect(buildBlockPosition(undefined)).toEqual({});
   });
 });

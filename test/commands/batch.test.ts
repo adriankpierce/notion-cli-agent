@@ -128,7 +128,7 @@ describe('Batch Command', () => {
 
       await program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations)]);
 
-      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', { archived: true });
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', { in_trash: true });
     });
 
     it('should execute query operation', async () => {

@@ -5,7 +5,7 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { parseFilter, parseProperties } from '../utils/format.js';
-import { getPageTitle } from '../utils/notion-helpers.js';
+import { getPageTitle, buildTrashPayload } from '../utils/notion-helpers.js';
 import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Page, Database, PropertySchema, PaginatedResponse } from '../types/notion.js';
@@ -238,7 +238,7 @@ export function registerBulkCommand(program: Command): void {
         
         for (const page of result.results) {
           try {
-            await client.patch(`pages/${page.id}`, { archived: true });
+            await client.patch(`pages/${page.id}`, buildTrashPayload(true));
             archived++;
             process.stdout.write(`\r🗑️ Archived ${archived}/${result.results.length}...`);
           } catch (error) {

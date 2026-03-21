@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import { getClient } from '../client.js';
 import { formatOutput, formatPageTitle, parseProperties } from '../utils/format.js';
 import { markdownToBlocks } from '../utils/markdown.js';
-import { blocksToMarkdownAsync, fetchAllBlocks, getPageTitle, isParentDatabase, getParentDatabaseId, resolvePropertyName, buildClearPayload } from '../utils/notion-helpers.js';
+import { blocksToMarkdownAsync, fetchAllBlocks, getPageTitle, isParentDatabase, getParentDatabaseId, resolvePropertyName, buildClearPayload, buildTrashPayload, buildBlockPosition } from '../utils/notion-helpers.js';
 import { getDatabaseSchema } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Page } from '../types/notion.js';
@@ -217,9 +217,9 @@ export function registerPagesCommand(program: Command): void {
         }
 
         if (options.archive) {
-          body.archived = true;
+          Object.assign(body, buildTrashPayload(true));
         } else if (options.unarchive) {
-          body.archived = false;
+          Object.assign(body, buildTrashPayload(false));
         }
 
         if (options.icon) {
@@ -242,7 +242,7 @@ export function registerPagesCommand(program: Command): void {
     .description('Archive a page')
     .action(withErrorHandler(async (pageId: string) => {
       const client = getClient();
-      await client.patch(`pages/${pageId}`, { archived: true });
+      await client.patch(`pages/${pageId}`, buildTrashPayload(true));
       console.log('✅ Page archived');
     }));
 
@@ -499,10 +499,10 @@ export function registerPagesCommand(program: Command): void {
           // Insert in chunks of 100
           for (let i = 0; i < newBlocks.length; i += 100) {
             const chunk = newBlocks.slice(i, i + 100);
-            const body: Record<string, unknown> = { children: chunk };
-            if (afterBlockId) {
-              body.after = afterBlockId;
-            }
+            const body: Record<string, unknown> = {
+              children: chunk,
+              ...buildBlockPosition(afterBlockId),
+            };
             const result = await client.patch(`blocks/${pageId}/children`, body) as {
               results: { id: string }[];
             };

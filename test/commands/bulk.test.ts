@@ -250,8 +250,8 @@ describe('Bulk Command', () => {
       ]);
 
       expect(mockClient.patch).toHaveBeenCalledTimes(2);
-      expect(mockClient.patch).toHaveBeenCalledWith('pages/1', { archived: true });
-      expect(mockClient.patch).toHaveBeenCalledWith('pages/2', { archived: true });
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/1', { in_trash: true });
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/2', { in_trash: true });
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Archived 2 entries'));
     });
 
@@ -319,7 +319,7 @@ describe('Bulk Command', () => {
 
       // Delete is an alias for archive, so uses patch
       expect(mockClient.patch).toHaveBeenCalledTimes(2);
-      expect(mockClient.patch).toHaveBeenCalledWith('pages/1', { archived: true });
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/1', { in_trash: true });
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Note: Notion does not support permanent deletion'));
     });
 

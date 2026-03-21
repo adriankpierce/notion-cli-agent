@@ -196,6 +196,26 @@ export function getParentDatabaseId(parent: Page['parent']): string | undefined 
   return parent.database_id ?? parent.data_source_id;
 }
 
+// ─── API v2026-03-11 helpers ─────────────────────────────────────────────────
+
+/**
+ * Build the trash/archive payload for the current API version.
+ * v2026-03-11 uses `in_trash` instead of `archived`.
+ */
+export function buildTrashPayload(trash: boolean): Record<string, boolean> {
+  return { in_trash: trash };
+}
+
+/**
+ * Build the block positioning payload for the current API version.
+ * v2026-03-11 uses `position: { after_block: id }` instead of `after: id`.
+ * If no afterBlockId, returns empty (appends at end by default).
+ */
+export function buildBlockPosition(afterBlockId?: string): Record<string, unknown> {
+  if (!afterBlockId) return {};
+  return { position: { after_block: afterBlockId } };
+}
+
 // ─── Property Value Extraction ──────────────────────────────────────────────
 
 /**
