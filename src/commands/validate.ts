@@ -19,11 +19,6 @@ interface ValidationIssue {
   suggestion?: string;
 }
 
-function getPropertyValue(prop: Record<string, unknown>): unknown {
-  const type = prop.type as string;
-  return prop[type];
-}
-
 function isPropertyEmpty(prop: Record<string, unknown>): boolean {
   const type = prop.type as string;
   const value = prop[type];

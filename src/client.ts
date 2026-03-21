@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as os from 'os';
 
 const NOTION_API_BASE = 'https://api.notion.com/v1';
-const NOTION_VERSION = '2022-06-28'; // Stable version
+const NOTION_VERSION = '2025-09-03';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_REQUESTS_PER_SECOND = 3;

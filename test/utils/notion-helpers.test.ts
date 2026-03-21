@@ -342,20 +342,20 @@ describe('getPropertyValue()', () => {
     });
   });
 
-  describe('unsupported types', () => {
-    it('should return null for formula', () => {
+  describe('extended types', () => {
+    it('should extract formula string value', () => {
       const prop = { type: 'formula', formula: { type: 'string', string: 'result' } };
-      expect(getPropertyValue(prop)).toBeNull();
+      expect(getPropertyValue(prop)).toBe('result');
     });
 
-    it('should return null for rollup', () => {
+    it('should extract rollup number value', () => {
       const prop = { type: 'rollup', rollup: { type: 'number', number: 5 } };
-      expect(getPropertyValue(prop)).toBeNull();
+      expect(getPropertyValue(prop)).toBe('5');
     });
 
-    it('should return null for relation', () => {
+    it('should extract relation IDs', () => {
       const prop = { type: 'relation', relation: [{ id: 'page-id' }] };
-      expect(getPropertyValue(prop)).toBeNull();
+      expect(getPropertyValue(prop)).toBe('page-id');
     });
 
     it('should return null for unknown types', () => {

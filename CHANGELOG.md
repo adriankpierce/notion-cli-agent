@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`--prop` type hint syntax** — `--prop "Key:type=Value"` forces a specific property type (e.g., `--prop "Status:status=Done"`). Solves the status-vs-select ambiguity without requiring schema lookups.
+
+### Changed
+
+- **Notion API version upgraded from `2022-06-28` to `2025-09-03`** — all database operations now route through `/v1/data_sources/` endpoints natively. No user-facing changes; the CLI abstracts the API version entirely.
+- Database resolver simplified by 72 lines (-23%) — removed legacy try-first fallback and version override hack.
+- Search filter `--type database` now maps to the API's `data_source` object type transparently.
+- `getPropertyValue()` now handles formula, rollup, relation, files, and people types (previously returned null).
+- Consolidated 3 duplicate property extraction functions into shared helpers.
+
+### Fixed
+
+- `parseFilter` now correctly handles `is_empty` and `is_not_empty` operators — sends `{ is_empty: true }` instead of `{ is_empty: "<value>" }`. Also fixes valueless date operators (`past_week`, `next_month`, etc.).
+- `parent.type` checks now handle v2025-09-03 `data_source_id` parent type alongside legacy `database_id`.
+- Relation property reads now check `data_source_id` alongside `database_id`.
+- `isMultiDataSource` now correctly checks for >1 data sources (was >0).
+- Template `--name` sanitized to prevent path traversal.
+- Batch skill docs corrected to show proper Notion API property format.
+- README: removed incorrect "bidirectional sync" claim for Obsidian integration.
+- Skills: fixed hardcoded binary path, updated `--llm` flag list.
+
 ## [0.8.2] - 2026-03-21
 
 ### Fixed

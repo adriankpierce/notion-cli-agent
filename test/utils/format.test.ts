@@ -519,6 +519,38 @@ describe('Format Utilities', () => {
       });
     });
 
+    it('should parse status property with type hint syntax', () => {
+      const props = ['Status:status=Done'];
+      const result = parseProperties(props);
+      expect(result).toEqual({
+        Status: { status: { name: 'Done' } },
+      });
+    });
+
+    it('should parse rich_text with type hint syntax', () => {
+      const props = ['Notes:rich_text=Some notes here'];
+      const result = parseProperties(props);
+      expect(result).toEqual({
+        Notes: { rich_text: [{ text: { content: 'Some notes here' } }] },
+      });
+    });
+
+    it('should parse people type hint (pass-through as relation-like)', () => {
+      const props = ['Assignee:people=user-123'];
+      const result = parseProperties(props);
+      expect(result).toEqual({
+        Assignee: { people: [{ id: 'user-123' }] },
+      });
+    });
+
+    it('should handle type hint with no colon (backwards compat)', () => {
+      const props = ['Status=In Progress'];
+      const result = parseProperties(props);
+      expect(result).toEqual({
+        Status: { select: { name: 'In Progress' } },
+      });
+    });
+
     it('should handle empty property value', () => {
       const props = ['Empty='];
       const result = parseProperties(props);
@@ -663,6 +695,64 @@ describe('Format Utilities', () => {
         expect(filter).toEqual({
           property: 'Status',
           select: { equals: 'In Progress' },
+        });
+      });
+    });
+
+    describe('Empty/not-empty operators', () => {
+      it('should create is_empty filter with boolean true (not user value)', () => {
+        const filter = parseFilter('Assignee', 'is_empty', '', 'people');
+        expect(filter).toEqual({
+          property: 'Assignee',
+          people: { is_empty: true },
+        });
+      });
+
+      it('should create is_not_empty filter with boolean true', () => {
+        const filter = parseFilter('Assignee', 'is_not_empty', '', 'people');
+        expect(filter).toEqual({
+          property: 'Assignee',
+          people: { is_not_empty: true },
+        });
+      });
+
+      it('should handle is_empty for select type', () => {
+        const filter = parseFilter('Priority', 'is_empty', '', 'select');
+        expect(filter).toEqual({
+          property: 'Priority',
+          select: { is_empty: true },
+        });
+      });
+
+      it('should handle is_not_empty for date type', () => {
+        const filter = parseFilter('Due', 'is_not_empty', '', 'date');
+        expect(filter).toEqual({
+          property: 'Due',
+          date: { is_not_empty: true },
+        });
+      });
+
+      it('should handle is_empty even if user passes a value (ignore it)', () => {
+        const filter = parseFilter('Tags', 'is_empty', 'ignored', 'multi_select');
+        expect(filter).toEqual({
+          property: 'Tags',
+          multi_select: { is_empty: true },
+        });
+      });
+
+      it('should handle valueless date operators (past_week, next_month)', () => {
+        const filter = parseFilter('Due', 'past_week', '', 'date');
+        expect(filter).toEqual({
+          property: 'Due',
+          date: { past_week: {} },
+        });
+      });
+
+      it('should handle next_month date operator', () => {
+        const filter = parseFilter('Due', 'next_month', '', 'date');
+        expect(filter).toEqual({
+          property: 'Due',
+          date: { next_month: {} },
         });
       });
     });

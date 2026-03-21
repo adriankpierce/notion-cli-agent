@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockDatabase, mockPage, createPaginatedResult } from '../fixtures/notion-data';
+import { mockDatabase, mockPage, createPaginatedResult, setupDatabaseResolution } from '../fixtures/notion-data';
 
 describe('Databases Command', () => {
   let program: Command;
@@ -9,9 +9,9 @@ describe('Databases Command', () => {
   beforeEach(async () => {
     vi.resetModules();
 
-    // Create mock client — get defaults to mockDatabase for resolver
+    // Create mock client
     mockClient = {
-      get: vi.fn().mockResolvedValue(mockDatabase),
+      get: vi.fn(),
       post: vi.fn(),
       patch: vi.fn(),
       delete: vi.fn(),
@@ -31,18 +31,19 @@ describe('Databases Command', () => {
 
   describe('database get', () => {
     it('should get database by ID', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'database', 'get', 'db-123']);
 
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
       expect(console.log).toHaveBeenCalledWith('Database:', 'Test Database');
-      expect(console.log).toHaveBeenCalledWith('ID:', 'db-123');
+      expect(console.log).toHaveBeenCalledWith('ID:', 'ds-456');
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Properties:'));
     });
 
     it('should output JSON when --json flag is used', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'database', 'get', 'db-123', '--json']);
 
@@ -52,17 +53,19 @@ describe('Databases Command', () => {
 
   describe('database query', () => {
     it('should query database without filters', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
       await program.parseAsync(['node', 'test', 'database', 'query', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         page_size: 100,
       });
     });
 
     it('should query with JSON filter', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -72,13 +75,14 @@ describe('Databases Command', () => {
         '--filter', filter,
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         filter: { property: 'Status', status: { equals: 'Done' } },
         page_size: 100,
       });
     });
 
     it('should query with simple filter options', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -90,7 +94,7 @@ describe('Databases Command', () => {
         '--filter-prop-type', 'status',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         filter: {
           property: 'Status',
           status: { equals: 'Done' },
@@ -100,6 +104,7 @@ describe('Databases Command', () => {
     });
 
     it('should query with sorting (descending)', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -108,7 +113,7 @@ describe('Databases Command', () => {
         '--sort', 'Created',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         sorts: [{
           property: 'Created',
           direction: 'descending',
@@ -118,6 +123,7 @@ describe('Databases Command', () => {
     });
 
     it('should query with sorting (ascending)', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -127,7 +133,7 @@ describe('Databases Command', () => {
         '--sort-dir', 'asc',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         sorts: [{
           property: 'Priority',
           direction: 'ascending',
@@ -137,6 +143,7 @@ describe('Databases Command', () => {
     });
 
     it('should query with limit', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -145,12 +152,13 @@ describe('Databases Command', () => {
         '--limit', '50',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         page_size: 50,
       });
     });
 
     it('should query with cursor', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -159,13 +167,14 @@ describe('Databases Command', () => {
         '--cursor', 'cursor-123',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         page_size: 100,
         start_cursor: 'cursor-123',
       });
     });
 
     it('should show pagination hint when has_more is true', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage], 'next-cursor-123', true);
       mockClient.post.mockResolvedValue(result);
 
@@ -177,6 +186,7 @@ describe('Databases Command', () => {
     });
 
     it('should output JSON when --json flag is used', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -186,6 +196,7 @@ describe('Databases Command', () => {
     });
 
     it('should combine filter, sort, and pagination', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -200,7 +211,7 @@ describe('Databases Command', () => {
         '--limit', '25',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         filter: {
           property: 'Status',
           status: { equals: 'In Progress' },
@@ -216,6 +227,7 @@ describe('Databases Command', () => {
 
   describe('database query multi-filter', () => {
     it('should combine two filter groups with { and: [...] }', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -231,7 +243,7 @@ describe('Databases Command', () => {
         '--filter-prop-type', 'checkbox',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         filter: {
           and: [
             { property: 'Due Date', date: { before: '2024-01-01' } },
@@ -243,6 +255,7 @@ describe('Databases Command', () => {
     });
 
     it('should combine three filter groups with { and: [...] }', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -262,7 +275,7 @@ describe('Databases Command', () => {
         '--filter-prop-type', 'checkbox',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         filter: {
           and: [
             { property: 'Status', status: { equals: 'Done' } },
@@ -310,6 +323,7 @@ describe('Databases Command', () => {
     });
 
     it('should produce plain filter object for single filter group (regression)', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -321,13 +335,14 @@ describe('Databases Command', () => {
         '--filter-prop-type', 'status',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         filter: { property: 'Status', status: { equals: 'Done' } },
         page_size: 100,
       });
     });
 
     it('should use raw --filter JSON unchanged (regression)', async () => {
+      setupDatabaseResolution(mockClient);
       const result = createPaginatedResult([mockPage]);
       mockClient.post.mockResolvedValue(result);
 
@@ -337,7 +352,7 @@ describe('Databases Command', () => {
         '--filter', filter,
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         filter: { property: 'Status', status: { equals: 'Done' } },
         page_size: 100,
       });
@@ -356,6 +371,7 @@ describe('Databases Command', () => {
     });
 
     it('should handle query errors', async () => {
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockRejectedValue(new Error('Invalid filter'));
 
       await expect(

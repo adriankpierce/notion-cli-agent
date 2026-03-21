@@ -9,98 +9,27 @@ import {
   richTextToMarkdown,
 } from '../utils/markdown.js';
 import { queryAllPages } from '../utils/database-resolver.js';
-import { blocksToMarkdownAsync } from '../utils/notion-helpers.js';
+import { blocksToMarkdownAsync, getPropertyRawValue } from '../utils/notion-helpers.js';
 import { withErrorHandler } from '../utils/command-handler.js';
-import type { RichText, Block, Page } from '../types/notion.js';
+import type { RichText, Page } from '../types/notion.js';
 
-function getPageTitle(page: Page): string {
-  const props = page.properties;
-  
-  for (const [, value] of Object.entries(props)) {
+/** Property raw value options pre-configured with markdown formatting for rich text. */
+const markdownPropertyOptions = {
+  richTextFormatter: (rt: { plain_text: string }[]) => richTextToMarkdown(rt as RichText[]),
+};
+
+/**
+ * Extract the title from a Notion page with markdown formatting (bold, italic, etc.).
+ * Used by export commands where rich text annotations must be preserved.
+ */
+function getPageTitleMarkdown(page: Page): string {
+  for (const value of Object.values(page.properties)) {
     const prop = value as { type: string; title?: RichText[] };
     if (prop.type === 'title' && prop.title) {
       return richTextToMarkdown(prop.title);
     }
   }
-  
   return 'Untitled';
-}
-
-function propertyToValue(prop: Record<string, unknown>): unknown {
-  const type = prop.type as string;
-  const data = prop[type];
-  
-  switch (type) {
-    case 'title':
-    case 'rich_text':
-      return richTextToMarkdown(data as RichText[]);
-    
-    case 'number':
-      return data;
-    
-    case 'select':
-      return (data as { name?: string })?.name || null;
-    
-    case 'multi_select':
-      return (data as { name: string }[])?.map(s => s.name) || [];
-    
-    case 'status':
-      return (data as { name?: string })?.name || null;
-    
-    case 'date':
-      const dateData = data as { start?: string; end?: string } | null;
-      if (!dateData) return null;
-      return dateData.end ? `${dateData.start} - ${dateData.end}` : dateData.start;
-    
-    case 'checkbox':
-      return data;
-    
-    case 'url':
-    case 'email':
-    case 'phone_number':
-      return data;
-    
-    case 'people':
-      return (data as { name?: string }[])?.map(p => p.name).filter(Boolean) || [];
-    
-    case 'files':
-      return (data as { name?: string; file?: { url: string }; external?: { url: string } }[])?.map(f => 
-        f.file?.url || f.external?.url || f.name
-      ) || [];
-    
-    case 'relation':
-      return (data as { id: string }[])?.map(r => r.id) || [];
-    
-    case 'formula':
-      const formula = data as { type: string; string?: string; number?: number; boolean?: boolean; date?: { start: string } };
-      switch (formula?.type) {
-        case 'string': return formula.string;
-        case 'number': return formula.number;
-        case 'boolean': return formula.boolean;
-        case 'date': return formula.date?.start;
-        default: return null;
-      }
-    
-    case 'rollup':
-      const rollup = data as { type: string; array?: unknown[]; number?: number; date?: { start: string } };
-      switch (rollup?.type) {
-        case 'array': return rollup.array;
-        case 'number': return rollup.number;
-        case 'date': return rollup.date?.start;
-        default: return null;
-      }
-    
-    case 'created_time':
-    case 'last_edited_time':
-      return data;
-    
-    case 'created_by':
-    case 'last_edited_by':
-      return (data as { name?: string })?.name || null;
-    
-    default:
-      return null;
-  }
 }
 
 function generateFrontmatter(page: Page, includeId = true): string {
@@ -127,7 +56,7 @@ function generateFrontmatter(page: Page, includeId = true): string {
     const prop = value as Record<string, unknown>;
     if (prop.type === 'title') continue; // Title is the filename
     
-    const val = propertyToValue(prop);
+    const val = getPropertyRawValue(prop, markdownPropertyOptions);
     if (val === null || val === undefined || val === '') continue;
     
     // Sanitize property name for YAML
@@ -176,7 +105,7 @@ export function registerExportCommand(program: Command): void {
 
       // Fetch page
       const page = await client.get(`pages/${pageId}`) as Page;
-      const title = getPageTitle(page);
+      const title = getPageTitleMarkdown(page);
 
       let output = '';
 
@@ -236,7 +165,7 @@ export function registerExportCommand(program: Command): void {
 
         let exported = 0;
         for (const page of pages) {
-          const title = getPageTitle(page);
+          const title = getPageTitleMarkdown(page);
           const filename = sanitizeFilename(title) + '.md';
           const filepath = path.join(outputFolder, filename);
 

@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import { getClient } from '../client.js';
 import { formatOutput, formatPageTitle, parseProperties } from '../utils/format.js';
 import { markdownToBlocks } from '../utils/markdown.js';
-import { blocksToMarkdownAsync, fetchAllBlocks, getPageTitle } from '../utils/notion-helpers.js';
+import { blocksToMarkdownAsync, fetchAllBlocks, getPageTitle, isParentDatabase, getParentDatabaseId } from '../utils/notion-helpers.js';
 import { getDatabaseSchema } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Page } from '../types/notion.js';
@@ -157,12 +157,11 @@ export function registerPagesCommand(program: Command): void {
           let detectedParentType: 'database' | 'page' | null = null;
           if (!titlePropName) {
             try {
-              const page = await client.get(`pages/${pageId}`) as {
-                parent: { type: string; database_id?: string };
-              };
-              if (page.parent.type === 'database_id' && page.parent.database_id) {
+              const page = await client.get(`pages/${pageId}`) as Page;
+              const parentDbId = getParentDatabaseId(page.parent);
+              if (isParentDatabase(page.parent) && parentDbId) {
                 detectedParentType = 'database';
-                const db = await getDatabaseSchema(client, page.parent.database_id) as {
+                const db = await getDatabaseSchema(client, parentDbId) as {
                   properties: Record<string, { type: string }>;
                 };
                 for (const [name, prop] of Object.entries(db.properties)) {

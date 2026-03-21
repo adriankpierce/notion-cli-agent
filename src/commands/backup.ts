@@ -6,7 +6,7 @@ import { getClient } from '../client.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { blocksToMarkdownSync } from '../utils/markdown.js';
-import { fetchAllBlocks, getPageTitle, getDbTitle } from '../utils/notion-helpers.js';
+import { fetchAllBlocks, getPageTitle, getDbTitle, getPropertyRawValue } from '../utils/notion-helpers.js';
 import { getDatabaseSchema, queryAllPages } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Block, Page, Database } from '../types/notion.js';
@@ -192,7 +192,7 @@ function generateMarkdown(page: Page, blocks?: Block[]): string {
     const prop = value as { type: string; [key: string]: unknown };
     if (prop.type === 'title') continue;
     
-    const val = extractPropertyValue(prop);
+    const val = getPropertyRawValue(prop);
     if (val !== null && val !== '') {
       const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
       if (Array.isArray(val)) {
@@ -217,32 +217,3 @@ function generateMarkdown(page: Page, blocks?: Block[]): string {
   return md;
 }
 
-function extractPropertyValue(prop: Record<string, unknown>): unknown {
-  const type = prop.type as string;
-  const data = prop[type];
-  
-  switch (type) {
-    case 'title':
-    case 'rich_text':
-      return (data as { plain_text: string }[])?.map(t => t.plain_text).join('') || null;
-    case 'select':
-    case 'status':
-      return (data as { name?: string })?.name || null;
-    case 'multi_select':
-      return (data as { name: string }[])?.map(s => s.name) || [];
-    case 'date':
-      return (data as { start?: string })?.start || null;
-    case 'number':
-      return data;
-    case 'checkbox':
-      return data;
-    case 'url':
-    case 'email':
-    case 'phone_number':
-      return data || null;
-    case 'people':
-      return (data as { name?: string }[])?.map(p => p.name).filter(Boolean) || [];
-    default:
-      return null;
-  }
-}

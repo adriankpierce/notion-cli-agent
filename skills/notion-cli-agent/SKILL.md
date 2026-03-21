@@ -10,8 +10,7 @@ Local CLI for full Notion access.
 ## Binary
 
 ```bash
-~/clawd/bin/notion <args>   # OpenClaw wrapper
-# or: notion <args>          # if globally installed
+notion <args>   # globally installed via npm
 ```
 
 Auth: `NOTION_TOKEN` env var, or `~/.config/notion/api_key`.
@@ -98,7 +97,7 @@ notion validate check <db_id> --check-dates --check-stale 30
 
 | Flag | Use for |
 |------|---------|
-| `--llm` | Compact, structured output for agents on supported commands (`find`, `batch`, `inspect schema`) |
+| `--llm` | Compact, structured output for agents (`find`, `batch`, `inspect schema/context`, `stats overview`, `relations backlinks`) |
 | `--json` / `-j` | Raw JSON for parsing |
 | (default) | Human-readable |
 
@@ -115,6 +114,16 @@ notion db query <db_id> \
 Types: `status` · `select` · `multi_select` · `number` · `date` · `checkbox` · `people` · `relation`
 
 See `references/filters.md` for full operator reference.
+
+## Property type hints for --prop
+
+Auto-detection treats plain strings as `select`. Use `Key:type=Value` to force a type:
+
+```bash
+notion page update <id> --prop "Status:status=Done"    # status, not select
+notion page update <id> --prop "Notes:rich_text=Text"   # rich_text, not select
+notion page update <id> --prop "Owner:people=<user_id>" # people
+```
 
 ## Rules
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockPage, mockDatabase } from '../fixtures/notion-data';
+import { mockPage, mockDatabase, mockMultiDsDatabase, mockDataSource, setupDatabaseResolution } from '../fixtures/notion-data';
 
 describe('Relations Command', () => {
   let program: Command;
@@ -49,7 +49,8 @@ describe('Relations Command', () => {
 
       mockClient.get.mockImplementation(async (path: string) => {
         if (path === 'pages/target-123') return targetPage;
-        if (path.startsWith('databases/')) return mockDatabase;
+        if (path.startsWith('databases/')) return { ...mockMultiDsDatabase, id: 'db-123', title: mockDatabase.title, data_sources: [{ id: 'ds-456', name: 'Data Source' }] };
+        if (path.startsWith('data_sources/')) return { ...mockDataSource, id: 'ds-456', title: mockDatabase.title, properties: mockDatabase.properties, url: mockDatabase.url };
         throw new Error('Unexpected path');
       });
       mockClient.post.mockImplementation(async (path: string) => {
@@ -97,7 +98,8 @@ describe('Relations Command', () => {
 
       mockClient.get.mockImplementation(async (path: string) => {
         if (path === 'pages/target-123') return targetPage;
-        if (path.startsWith('databases/')) return mockDatabase;
+        if (path.startsWith('databases/')) return { ...mockMultiDsDatabase, id: 'db-123', title: mockDatabase.title, data_sources: [{ id: 'ds-456', name: 'Data Source' }] };
+        if (path.startsWith('data_sources/')) return { ...mockDataSource, id: 'ds-456', title: mockDatabase.title, properties: mockDatabase.properties, url: mockDatabase.url };
         throw new Error('Unexpected path');
       });
       mockClient.post.mockImplementation(async (path: string) => {
@@ -114,8 +116,9 @@ describe('Relations Command', () => {
 
     it('should output JSON with --json', async () => {
       const targetPage = { ...mockPage, id: 'target-123' };
-      
-      mockClient.get.mockResolvedValue(targetPage);
+
+      mockClient.get.mockResolvedValueOnce(targetPage);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ results: [] });
 
       await program.parseAsync(['node', 'test', 'relations', 'backlinks', 'target-123', '--json']);
@@ -143,7 +146,8 @@ describe('Relations Command', () => {
 
       mockClient.get.mockImplementation(async (path: string) => {
         if (path === 'pages/target-123') return targetPage;
-        if (path.startsWith('databases/')) return mockDatabase;
+        if (path.startsWith('databases/')) return { ...mockMultiDsDatabase, id: 'db-123', title: mockDatabase.title, data_sources: [{ id: 'ds-456', name: 'Data Source' }] };
+        if (path.startsWith('data_sources/')) return { ...mockDataSource, id: 'ds-456', title: mockDatabase.title, properties: mockDatabase.properties, url: mockDatabase.url };
         throw new Error('Unexpected path');
       });
       mockClient.post.mockImplementation(async (path: string) => {
@@ -159,8 +163,9 @@ describe('Relations Command', () => {
 
     it('should handle no backlinks found', async () => {
       const targetPage = { ...mockPage, id: 'target-123' };
-      
-      mockClient.get.mockResolvedValue(targetPage);
+
+      mockClient.get.mockResolvedValueOnce(targetPage);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ results: [] });
 
       await program.parseAsync(['node', 'test', 'relations', 'backlinks', 'target-123']);

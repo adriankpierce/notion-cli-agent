@@ -67,8 +67,8 @@ skills/
 
 ### 🔄 Obsidian Integration
 - **Export to Obsidian** — Pages and databases with YAML frontmatter
-- **Import from Obsidian** — Sync your vault to Notion
-- **Bidirectional workflow** — Keep both systems in sync
+- **Import from Obsidian** — Import vault notes to Notion
+- **CSV & Markdown import** — Bulk import from files
 
 ### 📊 Analytics & Validation
 - **Statistics** — Database metrics, breakdowns by property
@@ -660,6 +660,19 @@ When setting properties with `--prop`, the CLI auto-detects types:
 | URL | url | `--prop "Link=https://..."` |
 | Email | email | `--prop "Contact=a@b.com"` |
 | Comma-separated | multi_select | `--prop "Tags=bug,urgent"` |
+
+**Type hints** — Force a specific property type with `Key:type=Value`:
+
+```bash
+# Status properties (vs auto-detected select)
+notion page update <id> --prop "Status:status=Done"
+
+# Rich text instead of select
+notion page update <id> --prop "Notes:rich_text=Some notes"
+
+# People by user ID
+notion page update <id> --prop "Assignee:people=user-id-here"
+```
 
 For database queries with non-select properties:
 ```bash

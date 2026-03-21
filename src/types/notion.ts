@@ -61,7 +61,7 @@ export interface Page {
   created_time: string;
   last_edited_time: string;
   properties: Record<string, unknown>;
-  parent: { type: string; database_id?: string; page_id?: string };
+  parent: { type: string; database_id?: string; data_source_id?: string; page_id?: string };
 }
 
 // ─── Databases ───────────────────────────────────────────────────────────────

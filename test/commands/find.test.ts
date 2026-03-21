@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockDatabase, createPaginatedResult, createMockPage } from '../fixtures/notion-data';
+import { mockDatabase, createPaginatedResult, createMockPage, setupDatabaseResolution } from '../fixtures/notion-data';
 
 describe('Find Command', () => {
   let program: Command;
@@ -31,12 +31,12 @@ describe('Find Command', () => {
 
   describe('status patterns', () => {
     it('should find "done" status', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Done Task')]));
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Status',
         }),
@@ -45,34 +45,34 @@ describe('Find Command', () => {
     });
 
     it('should find "in progress" status', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'in progress', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.any(Object),
       }));
     });
 
     it('should find "todo" status', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'todo', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.any(Object),
       }));
     });
 
     it('should support Spanish status patterns', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'hecho', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.any(Object),
       }));
     });
@@ -87,12 +87,12 @@ describe('Find Command', () => {
           Assignee: { id: 'assignee', name: 'Assignee', type: 'people' },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithPeople);
+      setupDatabaseResolution(mockClient, dbWithPeople);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'unassigned', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Assignee',
           people: { is_empty: true },
@@ -108,12 +108,12 @@ describe('Find Command', () => {
           Assignee: { id: 'assignee', name: 'Assignee', type: 'people' },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithPeople);
+      setupDatabaseResolution(mockClient, dbWithPeople);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'sin asignar', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           people: { is_empty: true },
         }),
@@ -130,12 +130,12 @@ describe('Find Command', () => {
           'Due Date': { id: 'due', name: 'Due Date', type: 'date' },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithDate);
+      setupDatabaseResolution(mockClient, dbWithDate);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'overdue', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Due Date',
           date: expect.objectContaining({
@@ -153,12 +153,12 @@ describe('Find Command', () => {
           'Due Date': { id: 'due', name: 'Due Date', type: 'date' },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithDate);
+      setupDatabaseResolution(mockClient, dbWithDate);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'today', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Due Date',
           date: expect.objectContaining({
@@ -176,12 +176,12 @@ describe('Find Command', () => {
           'Due Date': { id: 'due', name: 'Due Date', type: 'date' },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithDate);
+      setupDatabaseResolution(mockClient, dbWithDate);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'this week', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Due Date',
           date: { this_week: {} },
@@ -190,12 +190,12 @@ describe('Find Command', () => {
     });
 
     it('should find items modified today using timestamp filter', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'modified today', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           timestamp: 'last_edited_time',
           last_edited_time: expect.objectContaining({
@@ -206,12 +206,12 @@ describe('Find Command', () => {
     });
 
     it('should find items created today using timestamp filter', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'created today', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           timestamp: 'created_time',
           created_time: expect.objectContaining({
@@ -242,12 +242,12 @@ describe('Find Command', () => {
           },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithPriority);
+      setupDatabaseResolution(mockClient, dbWithPriority);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'high priority', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Priority',
           select: { equals: 'High' },
@@ -270,12 +270,12 @@ describe('Find Command', () => {
           },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithPriority);
+      setupDatabaseResolution(mockClient, dbWithPriority);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'urgente', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.any(Object));
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.any(Object));
     });
   });
 
@@ -289,12 +289,12 @@ describe('Find Command', () => {
           'Due Date': { id: 'due', name: 'Due Date', type: 'date' },
         },
       };
-      mockClient.get.mockResolvedValue(complexDb);
+      setupDatabaseResolution(mockClient, complexDb);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'todo unassigned overdue', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           and: expect.any(Array),
         }),
@@ -302,12 +302,12 @@ describe('Find Command', () => {
     });
 
     it('should handle single filter without AND wrapper', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: expect.any(String),
         }),
@@ -317,7 +317,7 @@ describe('Find Command', () => {
 
   describe('output modes', () => {
     it('should show explain mode with --explain', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123', '--explain']);
 
@@ -331,7 +331,7 @@ describe('Find Command', () => {
     });
 
     it('should output JSON with --json', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task')]));
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123', '--json']);
@@ -340,7 +340,7 @@ describe('Find Command', () => {
     });
 
     it('should format LLM-friendly output with --llm', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task')]));
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123', '--llm']);
@@ -351,7 +351,7 @@ describe('Find Command', () => {
     });
 
     it('should show standard output by default', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task')]));
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
@@ -363,18 +363,18 @@ describe('Find Command', () => {
 
   describe('result handling', () => {
     it('should respect --limit option', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123', '--limit', '50']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         page_size: 50,
       }));
     });
 
     it('should handle empty results', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
@@ -383,7 +383,7 @@ describe('Find Command', () => {
     });
 
     it('should show pagination hint when has_more is true', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({
         results: [createMockPage('1', 'Task')],
         has_more: true,
@@ -395,7 +395,7 @@ describe('Find Command', () => {
     });
 
     it('should display page titles and URLs', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       const pageWithUrl = {
         ...createMockPage('1', 'Test Page'),
         url: 'https://notion.so/test-page',
@@ -425,12 +425,12 @@ describe('Find Command', () => {
           },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithCustomStatus);
+      setupDatabaseResolution(mockClient, dbWithCustomStatus);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Task Status',
         }),
@@ -445,12 +445,12 @@ describe('Find Command', () => {
           Deadline: { id: 'deadline', name: 'Deadline', type: 'date' },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithDeadline);
+      setupDatabaseResolution(mockClient, dbWithDeadline);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'overdue', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Deadline',
         }),
@@ -465,12 +465,12 @@ describe('Find Command', () => {
           Owner: { id: 'owner', name: 'Owner', type: 'people' },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithOwner);
+      setupDatabaseResolution(mockClient, dbWithOwner);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'unassigned', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Owner',
         }),
@@ -497,12 +497,12 @@ describe('Find Command', () => {
           },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithExactStatus);
+      setupDatabaseResolution(mockClient, dbWithExactStatus);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           status: { equals: 'Done' },
         }),
@@ -526,12 +526,12 @@ describe('Find Command', () => {
           },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithPartialStatus);
+      setupDatabaseResolution(mockClient, dbWithPartialStatus);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'find', 'in progress', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           status: { equals: 'Working On It' },
         }),
@@ -551,7 +551,7 @@ describe('Find Command', () => {
     });
 
     it('should handle query execution errors', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockRejectedValue(new Error('Query failed'));
 
       await expect(

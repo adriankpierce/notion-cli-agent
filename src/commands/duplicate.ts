@@ -3,7 +3,7 @@
  */
 import { Command } from 'commander';
 import { getClient } from '../client.js';
-import { fetchAllBlocks, getPageTitle, getDbTitle } from '../utils/notion-helpers.js';
+import { fetchAllBlocks, getPageTitle, getDbTitle, isParentDatabase, getParentDatabaseId } from '../utils/notion-helpers.js';
 import { getDatabaseSchema, queryAllPages } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Block, Page, Database } from '../types/notion.js';
@@ -100,8 +100,8 @@ export function registerDuplicateCommand(program: Command): void {
             : { database_id: options.to };
         } else {
           // Use same parent as source
-          if (sourcePage.parent.type === 'database_id') {
-            parent = { database_id: sourcePage.parent.database_id! };
+          if (isParentDatabase(sourcePage.parent)) {
+            parent = { database_id: getParentDatabaseId(sourcePage.parent)! };
           } else {
             parent = { page_id: sourcePage.parent.page_id! };
           }

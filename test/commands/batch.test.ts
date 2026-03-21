@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockPage, mockDatabase, mockBlock } from '../fixtures/notion-data';
+import { mockPage, mockDatabase, mockBlock, setupDatabaseResolution } from '../fixtures/notion-data';
 
 describe('Batch Command', () => {
   let program: Command;
@@ -43,7 +43,9 @@ describe('Batch Command', () => {
 
   describe('batch from data string', () => {
     it('should execute get operations', async () => {
-      mockClient.get.mockResolvedValue(mockPage);
+      // Page get returns mockPage (first call), then database resolver needs 2 calls
+      mockClient.get.mockResolvedValueOnce(mockPage);
+      setupDatabaseResolution(mockClient);
 
       const operations = [
         { op: 'get', type: 'page', id: 'page-123' },
@@ -54,6 +56,7 @@ describe('Batch Command', () => {
 
       expect(mockClient.get).toHaveBeenCalledWith('pages/page-123');
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('succeeded'));
     });
 
@@ -129,6 +132,7 @@ describe('Batch Command', () => {
     });
 
     it('should execute query operation', async () => {
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ results: [mockPage] });
 
       const operations = [{
@@ -142,7 +146,7 @@ describe('Batch Command', () => {
 
       await program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations)]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.any(Object),
       }));
     });
@@ -394,6 +398,7 @@ describe('Batch Command', () => {
     });
 
     it('should update database', async () => {
+      setupDatabaseResolution(mockClient);
       mockClient.patch.mockResolvedValue(mockDatabase);
 
       const operations = [{
@@ -407,7 +412,7 @@ describe('Batch Command', () => {
 
       await program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations)]);
 
-      expect(mockClient.patch).toHaveBeenCalledWith('databases/db-123', expect.any(Object));
+      expect(mockClient.patch).toHaveBeenCalledWith('data_sources/ds-456', expect.any(Object));
     });
 
     it('should update block', async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockDatabase } from '../fixtures/notion-data';
+import { mockDatabase, setupDatabaseResolution } from '../fixtures/notion-data';
 
 describe('Import Command', () => {
   let program: Command;
@@ -151,12 +151,13 @@ Task 3,Todo,Low,2026-03-01`;
 
     it('should import CSV to database', async () => {
       mockFS.set('/tmp/data.csv', csvContent);
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ id: 'page-new' });
 
       await program.parseAsync(['node', 'test', 'import', 'csv', '/tmp/data.csv', '--to', 'db-123']);
 
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
       expect(mockClient.post).toHaveBeenCalledTimes(3); // 3 rows
       expect(mockClient.post).toHaveBeenCalledWith('pages', expect.objectContaining({
         parent: { database_id: 'db-123' },
@@ -167,7 +168,7 @@ Task 3,Todo,Low,2026-03-01`;
 
     it('should show CSV import preview with --dry-run', async () => {
       mockFS.set('/tmp/data.csv', csvContent);
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'import', 'csv', '/tmp/data.csv', '--to', 'db-123', '--dry-run']);
 
@@ -178,7 +179,7 @@ Task 3,Todo,Low,2026-03-01`;
 
     it('should respect --limit option', async () => {
       mockFS.set('/tmp/data.csv', csvContent);
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ id: 'page-new' });
 
       await program.parseAsync(['node', 'test', 'import', 'csv', '/tmp/data.csv', '--to', 'db-123', '--limit', '2']);
@@ -190,7 +191,7 @@ Task 3,Todo,Low,2026-03-01`;
     it('should use custom title column with --title-column', async () => {
       const customCSV = `ID,Description\n1,First Item\n2,Second Item`;
       mockFS.set('/tmp/custom.csv', customCSV);
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ id: 'page-new' });
 
       await program.parseAsync(['node', 'test', 'import', 'csv', '/tmp/custom.csv', '--to', 'db-123', '--title-column', 'Description']);
@@ -209,7 +210,7 @@ Task 3,Todo,Low,2026-03-01`;
     it('should handle CSV with quotes and commas', async () => {
       const complexCSV = `Name,Description\n"Item, with comma","Description ""quoted"""\nSimple,Basic`;
       mockFS.set('/tmp/complex.csv', complexCSV);
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ id: 'page-new' });
 
       await program.parseAsync(['node', 'test', 'import', 'csv', '/tmp/complex.csv', '--to', 'db-123']);
@@ -219,7 +220,7 @@ Task 3,Todo,Low,2026-03-01`;
 
     it('should handle empty CSV gracefully', async () => {
       mockFS.set('/tmp/empty.csv', 'Name\n'); // Only header
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await expect(
         program.parseAsync(['node', 'test', 'import', 'csv', '/tmp/empty.csv', '--to', 'db-123'])
@@ -230,7 +231,7 @@ Task 3,Todo,Low,2026-03-01`;
 
     it('should continue on row errors', async () => {
       mockFS.set('/tmp/data.csv', csvContent);
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post
         .mockResolvedValueOnce({ id: 'page-1' })
         .mockRejectedValueOnce(new Error('Invalid property'))

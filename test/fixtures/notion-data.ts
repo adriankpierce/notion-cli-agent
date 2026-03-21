@@ -22,7 +22,8 @@ export const mockPage = {
   last_edited_by: mockUser,
   archived: false,
   parent: {
-    type: 'database_id',
+    type: 'data_source_id',
+    data_source_id: 'ds-456',
     database_id: 'db-123',
   },
   properties: {
@@ -196,7 +197,7 @@ export const mockSearchResult = {
   results: [mockPage, mockDatabase],
   next_cursor: null,
   has_more: false,
-  type: 'page_or_database',
+  type: 'page_or_data_source',
 };
 
 export const mockQueryResult = {
@@ -352,6 +353,46 @@ export function createMockDataSource(id: string, title: string, properties: any 
 /**
  * Helper to create a minimal database
  */
+/**
+ * Helper: set up mockClient.get for the two-step database resolution flow.
+ * Step 1: GET /databases/{id} → { data_sources: [{ id, name }] }
+ * Step 2: GET /data_sources/{id} → schema with properties
+ *
+ * After calling this, mockClient.get will handle the resolver's discovery
+ * and any subsequent GET calls (e.g., blocks, pages) via the fallback.
+ */
+export function setupDatabaseResolution(
+  mockClient: { get: any },
+  database = mockDatabase,
+  dataSourceId = 'ds-456',
+  additionalGetMocks: any[] = [],
+) {
+  const discoveryResponse = {
+    ...mockMultiDsDatabase,
+    id: database.id,
+    title: database.title,
+    data_sources: [{ id: dataSourceId, name: 'Data Source' }],
+  };
+  const schemaResponse = {
+    ...mockDataSource,
+    id: dataSourceId,
+    title: database.title,
+    description: (database as any).description,
+    properties: database.properties,
+    url: database.url,
+  };
+
+  const mock = mockClient.get
+    .mockResolvedValueOnce(discoveryResponse)
+    .mockResolvedValueOnce(schemaResponse);
+
+  for (const additionalMock of additionalGetMocks) {
+    mock.mockResolvedValueOnce(additionalMock);
+  }
+
+  return mock;
+}
+
 export function createMockDatabase(id: string, title: string, properties: any = {}) {
   return {
     ...mockDatabase,

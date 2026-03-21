@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockPage, mockDatabase, mockBlock } from '../fixtures/notion-data';
+import { mockPage, mockDatabase, mockBlock, setupDatabaseResolution } from '../fixtures/notion-data';
 
 describe('Duplicate Command', () => {
   let program: Command;
@@ -253,12 +253,13 @@ describe('Duplicate Command', () => {
 
   describe('duplicate schema', () => {
     it('should clone database schema', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ id: 'new-db', url: 'https://notion.so/new-db' });
 
       await program.parseAsync(['node', 'test', 'duplicate', 'schema', 'db-123', '--to', 'page-parent']);
 
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
       expect(mockClient.post).toHaveBeenCalledWith('databases', expect.objectContaining({
         parent: { page_id: 'page-parent' },
         title: expect.arrayContaining([
@@ -270,7 +271,7 @@ describe('Duplicate Command', () => {
     });
 
     it('should use custom title with --title', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ id: 'new-db' });
 
       await program.parseAsync(['node', 'test', 'duplicate', 'schema', 'db-123', '--to', 'page-parent', '--title', 'New Schema']);
@@ -300,7 +301,7 @@ describe('Duplicate Command', () => {
           },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithSelect);
+      setupDatabaseResolution(mockClient, dbWithSelect);
       mockClient.post.mockResolvedValue({ id: 'new-db' });
 
       await program.parseAsync(['node', 'test', 'duplicate', 'schema', 'db-123', '--to', 'page-parent']);
@@ -341,7 +342,7 @@ describe('Duplicate Command', () => {
           },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithStatus);
+      setupDatabaseResolution(mockClient, dbWithStatus);
       mockClient.post.mockResolvedValue({ id: 'new-db' });
 
       await program.parseAsync(['node', 'test', 'duplicate', 'schema', 'db-123', '--to', 'page-parent']);
@@ -367,7 +368,7 @@ describe('Duplicate Command', () => {
           Rollup: { id: 'rollup', name: 'Rollup', type: 'rollup', rollup: {} },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithComputed);
+      setupDatabaseResolution(mockClient, dbWithComputed);
       mockClient.post.mockResolvedValue({ id: 'new-db' });
 
       await program.parseAsync(['node', 'test', 'duplicate', 'schema', 'db-123', '--to', 'page-parent']);
@@ -398,7 +399,7 @@ describe('Duplicate Command', () => {
           },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithRelation);
+      setupDatabaseResolution(mockClient, dbWithRelation);
       mockClient.post.mockResolvedValue({ id: 'new-db' });
 
       await program.parseAsync(['node', 'test', 'duplicate', 'schema', 'db-123', '--to', 'page-parent']);
@@ -426,7 +427,7 @@ describe('Duplicate Command', () => {
           Phone: { id: 'phone', name: 'Phone', type: 'phone_number' },
         },
       };
-      mockClient.get.mockResolvedValue(dbWithManyTypes);
+      setupDatabaseResolution(mockClient, dbWithManyTypes);
       mockClient.post.mockResolvedValue({ id: 'new-db' });
 
       await program.parseAsync(['node', 'test', 'duplicate', 'schema', 'db-123', '--to', 'page-parent']);
@@ -459,10 +460,10 @@ describe('Duplicate Command', () => {
 
   describe('duplicate database', () => {
     it('should clone database with entries', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string, data: any) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'databases/db-123/query') return { results: [mockPage], has_more: false };
+        if (path === 'data_sources/ds-456/query') return { results: [mockPage], has_more: false };
         if (path === 'pages') return { id: 'new-page' };
         throw new Error('Unexpected path');
       });
@@ -471,7 +472,7 @@ describe('Duplicate Command', () => {
 
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
       expect(mockClient.post).toHaveBeenCalledWith('databases', expect.any(Object));
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         page_size: 100,
       }));
       expect(mockClient.post).toHaveBeenCalledWith('pages', expect.objectContaining({
@@ -481,7 +482,7 @@ describe('Duplicate Command', () => {
     });
 
     it('should show dry run preview with --dry-run', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({ results: [mockPage, { ...mockPage, id: 'page-2' }], has_more: false });
 
       await program.parseAsync(['node', 'test', 'duplicate', 'database', 'db-123', '--to', 'page-parent', '--dry-run']);
@@ -494,10 +495,10 @@ describe('Duplicate Command', () => {
 
     it('should respect --limit option', async () => {
       const manyPages = Array.from({ length: 5 }, (_, i) => ({ ...mockPage, id: `page-${i}` }));
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'databases/db-123/query') return { results: manyPages, has_more: false };
+        if (path === 'data_sources/ds-456/query') return { results: manyPages, has_more: false };
         if (path === 'pages') return { id: 'new-page' };
         throw new Error('Unexpected path');
       });
@@ -510,14 +511,11 @@ describe('Duplicate Command', () => {
     });
 
     it('should copy page content with --content', async () => {
-      mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('databases/')) return mockDatabase;
-        if (path.startsWith('blocks/')) return { results: [mockBlock], has_more: false };
-        throw new Error('Unexpected path');
-      });
+      setupDatabaseResolution(mockClient);
+      mockClient.get.mockResolvedValue({ results: [mockBlock], has_more: false });
       mockClient.post.mockImplementation(async (path: string) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'databases/db-123/query') return { results: [mockPage], has_more: false };
+        if (path === 'data_sources/ds-456/query') return { results: [mockPage], has_more: false };
         if (path === 'pages') return { id: 'new-page' };
         throw new Error('Unexpected path');
       });
@@ -541,10 +539,10 @@ describe('Duplicate Command', () => {
       };
 
       let queryCallCount = 0;
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string, data: any) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'databases/db-123/query') {
+        if (path === 'data_sources/ds-456/query') {
           queryCallCount++;
           return queryCallCount === 1 ? firstBatch : secondBatch;
         }
@@ -554,7 +552,7 @@ describe('Duplicate Command', () => {
 
       await program.parseAsync(['node', 'test', 'duplicate', 'database', 'db-123', '--to', 'page-parent']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         start_cursor: 'cursor-123',
       }));
       // Should create 2 pages total
@@ -563,10 +561,10 @@ describe('Duplicate Command', () => {
     });
 
     it('should continue on entry clone failures', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'databases/db-123/query') {
+        if (path === 'data_sources/ds-456/query') {
           return {
             results: [
               mockPage,
@@ -592,10 +590,10 @@ describe('Duplicate Command', () => {
     });
 
     it('should use custom title with --title', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'databases/db-123/query') return { results: [], has_more: false };
+        if (path === 'data_sources/ds-456/query') return { results: [], has_more: false };
         throw new Error('Unexpected path');
       });
 

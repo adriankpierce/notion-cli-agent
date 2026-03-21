@@ -13,6 +13,22 @@ import * as os from 'os';
 
 const TEMPLATES_DIR = path.join(os.homedir(), '.notion-cli', 'templates');
 
+/**
+ * Sanitize template name to prevent path traversal.
+ * Only allows alphanumeric, hyphens, underscores, and dots.
+ */
+function sanitizeTemplateName(name: string): string {
+  const sanitized = path.basename(name).replace(/[^a-zA-Z0-9._-]/g, '-');
+  if (!sanitized || sanitized === '.' || sanitized === '..') {
+    throw new Error(`Invalid template name: "${name}"`);
+  }
+  return sanitized;
+}
+
+function resolveTemplatePath(name: string): string {
+  return path.join(TEMPLATES_DIR, `${sanitizeTemplateName(name)}.json`);
+}
+
 // Ensure templates directory exists
 function ensureTemplatesDir(): void {
   if (!fs.existsSync(TEMPLATES_DIR)) {
@@ -120,7 +136,7 @@ export function registerTemplateCommand(program: Command): void {
     .action(withErrorHandler(async (pageId: string, options) => {
         ensureTemplatesDir();
         
-        const templatePath = path.join(TEMPLATES_DIR, `${options.name}.json`);
+        const templatePath = resolveTemplatePath(options.name);
         
         if (fs.existsSync(templatePath) && !options.overwrite) {
           console.error(`Template "${options.name}" already exists. Use --overwrite to replace.`);
@@ -175,7 +191,7 @@ export function registerTemplateCommand(program: Command): void {
     .action(withErrorHandler(async (templateName: string, options) => {
         ensureTemplatesDir();
         
-        const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
+        const templatePath = resolveTemplatePath(templateName);
         
         if (!fs.existsSync(templatePath)) {
           console.error(`Template "${templateName}" not found.`);
@@ -278,7 +294,7 @@ export function registerTemplateCommand(program: Command): void {
     .action((templateName: string) => {
       ensureTemplatesDir();
       
-      const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
+      const templatePath = resolveTemplatePath(templateName);
       
       if (!fs.existsSync(templatePath)) {
         console.error(`Template "${templateName}" not found.`);
@@ -297,7 +313,7 @@ export function registerTemplateCommand(program: Command): void {
     .action((templateName: string, options) => {
       ensureTemplatesDir();
       
-      const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
+      const templatePath = resolveTemplatePath(templateName);
       
       if (!fs.existsSync(templatePath)) {
         console.error(`Template "${templateName}" not found.`);

@@ -127,6 +127,35 @@ function getBlockPrefix(type: string): string {
   return prefixes[type] || '?';
 }
 
+function buildTypedProperty(type: string, value: string): unknown {
+  switch (type) {
+    case 'status':
+      return { status: { name: value } };
+    case 'select':
+      return { select: { name: value } };
+    case 'multi_select':
+      return { multi_select: value.split(',').map(v => ({ name: v.trim() })) };
+    case 'rich_text':
+      return { rich_text: [{ text: { content: value } }] };
+    case 'number':
+      return { number: parseFloat(value) };
+    case 'checkbox':
+      return { checkbox: value === 'true' };
+    case 'date':
+      return { date: { start: value } };
+    case 'url':
+      return { url: value };
+    case 'email':
+      return { email: value };
+    case 'people':
+      return { people: value.split(',').map(id => ({ id: id.trim() })) };
+    case 'relation':
+      return { relation: value.split(',').map(id => ({ id: id.trim() })) };
+    default:
+      return { [type]: value };
+  }
+}
+
 export function parseProperties(props: string[]): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -134,8 +163,22 @@ export function parseProperties(props: string[]): Record<string, unknown> {
     const eqIndex = prop.indexOf('=');
     if (eqIndex === -1) continue;
 
-    const key = prop.slice(0, eqIndex);
+    let key = prop.slice(0, eqIndex);
     const value = prop.slice(eqIndex + 1);
+
+    // Support type hint syntax: "Key:type=Value"
+    let typeHint: string | undefined;
+    const colonIndex = key.indexOf(':');
+    if (colonIndex !== -1) {
+      typeHint = key.slice(colonIndex + 1);
+      key = key.slice(0, colonIndex);
+    }
+
+    // If type hint is provided, use it directly
+    if (typeHint) {
+      result[key] = buildTypedProperty(typeHint, value);
+      continue;
+    }
 
     // Try to determine property type from value format
     if (value.startsWith('[') || value.startsWith('{')) {
@@ -173,6 +216,32 @@ export function parseProperties(props: string[]): Record<string, unknown> {
   return result;
 }
 
+// Operators that take boolean true instead of a user-supplied value
+const BOOLEAN_OPERATORS = new Set(['is_empty', 'is_not_empty']);
+
+// Date operators that take an empty object {} instead of a date string
+const VALUELESS_DATE_OPERATORS = new Set([
+  'past_week', 'past_month', 'past_year',
+  'next_week', 'next_month', 'next_year',
+  'this_week',
+]);
+
+/**
+ * Resolve the filter value based on operator semantics.
+ * - is_empty / is_not_empty → true (boolean)
+ * - past_week, next_month, etc. → {} (empty object)
+ * - number types → parseFloat
+ * - checkbox → boolean
+ * - everything else → raw string value
+ */
+function resolveFilterValue(filterType: string, value: string, propType?: string): unknown {
+  if (BOOLEAN_OPERATORS.has(filterType)) return true;
+  if (propType === 'date' && VALUELESS_DATE_OPERATORS.has(filterType)) return {};
+  if (propType === 'number') return parseFloat(value);
+  if (propType === 'checkbox') return value === 'true';
+  return value;
+}
+
 export function parseFilter(
   property: string,
   filterType: string,
@@ -183,32 +252,8 @@ export function parseFilter(
 
   // If property type is explicitly specified, use it
   if (propType) {
-    switch (propType) {
-      case 'status':
-        filter.status = { [filterType]: value };
-        break;
-      case 'select':
-        filter.select = { [filterType]: value };
-        break;
-      case 'multi_select':
-        filter.multi_select = { [filterType]: value };
-        break;
-      case 'text':
-      case 'rich_text':
-        filter.rich_text = { [filterType]: value };
-        break;
-      case 'number':
-        filter.number = { [filterType]: parseFloat(value) };
-        break;
-      case 'checkbox':
-        filter.checkbox = { [filterType]: value === 'true' };
-        break;
-      case 'date':
-        filter.date = { [filterType]: value };
-        break;
-      default:
-        filter[propType] = { [filterType]: value };
-    }
+    const resolvedType = propType === 'text' ? 'rich_text' : propType;
+    filter[resolvedType] = { [filterType]: resolveFilterValue(filterType, value, propType) };
     return filter;
   }
 
@@ -220,7 +265,6 @@ export function parseFilter(
   } else if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
     filter.date = { [filterType]: value };
   } else {
-    // Default to select for simple string values (most common case)
     filter.select = { [filterType]: value };
   }
 

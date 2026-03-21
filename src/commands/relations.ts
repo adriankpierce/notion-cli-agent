@@ -4,7 +4,7 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
-import { getPageTitle } from '../utils/notion-helpers.js';
+import { getPageTitle, isParentDatabase, getParentDatabaseId } from '../utils/notion-helpers.js';
 import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Page, Database, PropertySchema, Block } from '../types/notion.js';
@@ -32,7 +32,7 @@ export function registerRelationsCommand(program: Command): void {
         console.log(`🔍 Finding backlinks to: ${targetTitle}\n`);
         
         // Find the parent database
-        if (targetPage.parent.type !== 'database_id' || !targetPage.parent.database_id) {
+        if (!isParentDatabase(targetPage.parent) || !getParentDatabaseId(targetPage.parent)) {
           console.log('Note: Page is not in a database. Checking for relation backlinks only.\n');
         }
         
@@ -47,15 +47,19 @@ export function registerRelationsCommand(program: Command): void {
         }) as { results: Page[] };
         
         // Strategy 2: Check relation properties in the same database
-        if (targetPage.parent.database_id) {
-          const db = await getDatabaseSchema(client, targetPage.parent.database_id);
+        const parentDbId = getParentDatabaseId(targetPage.parent);
+        if (parentDbId) {
+          const db = await getDatabaseSchema(client, parentDbId);
           
           // Find relation properties that point to this database
           for (const [propName, schema] of Object.entries(db.properties)) {
-            if (schema.type === 'relation' && (schema.relation as { database_id?: string })?.database_id) {
+            if (schema.type === 'relation') {
+              const relData = schema.relation as { database_id?: string; data_source_id?: string };
+              const relatedDbId = relData?.data_source_id ?? relData?.database_id;
+              if (!relatedDbId) continue;
               // Query for entries with relation to our page
               try {
-                const relResult = await queryDatabase(client, (schema.relation as { database_id: string }).database_id, {
+                const relResult = await queryDatabase(client, relatedDbId, {
                   page_size: 100,
                 }) as { results: Page[] };
                 
