@@ -7,6 +7,7 @@ import { getClient, NotionClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
 import { getDatabaseSchema, queryDatabase, updateDatabase } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
+import { buildTrashPayload } from '../utils/notion-helpers.js';
 
 interface BatchOperation {
   op: 'get' | 'create' | 'update' | 'delete' | 'query' | 'append';
@@ -60,7 +61,7 @@ async function executeOperation(client: NotionClient, op: BatchOperation): Promi
 
     case 'delete':
       if (op.type === 'block') return client.delete(`blocks/${op.id}`);
-      return client.patch(`pages/${op.id}`, { archived: true });
+      return client.patch(`pages/${op.id}`, buildTrashPayload(true));
 
     case 'query':
       if (op.type === 'database') {

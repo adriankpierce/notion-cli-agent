@@ -6,6 +6,7 @@ import { getClient } from '../client.js';
 import { formatOutput, formatBlock } from '../utils/format.js';
 import { parseInlineMarkdown } from '../utils/markdown.js';
 import { withErrorHandler } from '../utils/command-handler.js';
+import { buildBlockPosition, buildTrashPayload } from '../utils/notion-helpers.js';
 import type { NotionRichTextItem, PaginatedResponse } from '../types/notion.js';
 
 export function registerBlocksCommand(program: Command): void {
@@ -125,10 +126,10 @@ export function registerBlocksCommand(program: Command): void {
         process.exit(1);
       }
 
-      const body: Record<string, unknown> = { children };
-      if (options.after) {
-        body.after = options.after;
-      }
+      const body: Record<string, unknown> = {
+        children,
+        ...buildBlockPosition(options.after),
+      };
 
       const result = await client.patch(`blocks/${blockId}/children`, body);
 
@@ -162,7 +163,7 @@ export function registerBlocksCommand(program: Command): void {
       }
 
       if (options.archive) {
-        body.archived = true;
+        Object.assign(body, buildTrashPayload(true));
       }
 
       const result = await client.patch(`blocks/${blockId}`, body);

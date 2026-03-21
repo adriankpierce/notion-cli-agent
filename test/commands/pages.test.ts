@@ -305,12 +305,12 @@ describe('Pages Command', () => {
       ]);
 
       expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
-        archived: true,
+        in_trash: true,
       });
     });
 
     it('should unarchive page with --unarchive flag', async () => {
-      const updatedPage = { ...mockPage, id: 'page-123', archived: false };
+      const updatedPage = { ...mockPage, id: 'page-123', in_trash: false };
       mockClient.patch.mockResolvedValue(updatedPage);
 
       await program.parseAsync([
@@ -319,12 +319,12 @@ describe('Pages Command', () => {
       ]);
 
       expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
-        archived: false,
+        in_trash: false,
       });
     });
 
     it('should update properties and archive together', async () => {
-      const updatedPage = { ...mockPage, id: 'page-123', archived: true };
+      const updatedPage = { ...mockPage, id: 'page-123', in_trash: true };
       mockClient.patch.mockResolvedValue(updatedPage);
 
       await program.parseAsync([
@@ -339,7 +339,7 @@ describe('Pages Command', () => {
             select: { name: 'Done' },
           },
         },
-        archived: true,
+        in_trash: true,
       });
     });
 
@@ -485,12 +485,12 @@ describe('Pages Command', () => {
 
   describe('page archive', () => {
     it('should archive page', async () => {
-      mockClient.patch.mockResolvedValue({ ...mockPage, archived: true });
+      mockClient.patch.mockResolvedValue({ ...mockPage, in_trash: true });
 
       await program.parseAsync(['node', 'test', 'page', 'archive', 'page-123']);
 
       expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
-        archived: true,
+        in_trash: true,
       });
 
       expect(console.log).toHaveBeenCalledWith('✅ Page archived');
@@ -786,7 +786,7 @@ describe('Pages Command', () => {
         children: expect.arrayContaining([
           expect.objectContaining({ type: 'paragraph' }),
         ]),
-        after: 'block-aaa',
+        position: { after_block: 'block-aaa' },
       });
     });
 
@@ -815,7 +815,7 @@ describe('Pages Command', () => {
         children: expect.arrayContaining([
           expect.objectContaining({ type: 'paragraph' }),
         ]),
-        after: 'block-bbb',
+        position: { after_block: 'block-bbb' },
       });
     });
 

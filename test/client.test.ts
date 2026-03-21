@@ -44,7 +44,7 @@ describe('NotionClient', () => {
         expect.any(String),
         expect.objectContaining({
           headers: expect.objectContaining({
-            'Notion-Version': '2025-09-03',
+            'Notion-Version': '2026-03-11',
           }),
         })
       );
@@ -65,7 +65,7 @@ describe('NotionClient', () => {
           method: 'GET',
           headers: expect.objectContaining({
             'Authorization': 'Bearer test_token_123',
-            'Notion-Version': '2025-09-03',
+            'Notion-Version': '2026-03-11',
             'Content-Type': 'application/json',
           }),
         })

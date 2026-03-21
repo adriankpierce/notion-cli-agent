@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Notion API version upgraded from `2025-09-03` to `2026-03-11`** — no user-facing changes.
+- Archive/trash operations now use `in_trash` field (was `archived`).
+- Block append positioning now uses `position: { after_block: id }` (was `after: id`).
+- Both changes centralized via `buildTrashPayload()` and `buildBlockPosition()` helpers.
+
 ## [0.10.0] - 2026-03-21
 
 ### Added
