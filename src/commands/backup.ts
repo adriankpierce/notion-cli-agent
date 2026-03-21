@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { blocksToMarkdownSync } from '../utils/markdown.js';
 import { fetchAllBlocks, getPageTitle } from '../utils/notion-helpers.js';
-import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
+import { getDatabaseSchema, queryAllPages } from '../utils/database-resolver.js';
 import type { Block, Page, Database } from '../types/notion.js';
 
 function sanitizeFilename(name: string): string {
@@ -74,41 +74,17 @@ export function registerBackupCommand(program: Command): void {
         }
         
         // Query entries
-        const entries: Page[] = [];
-        let cursor: string | undefined;
-        
-        const queryBody: Record<string, unknown> = {
-          page_size: 100,
+        const filter = lastBackupTime
+          ? { timestamp: 'last_edited_time', last_edited_time: { after: lastBackupTime.toISOString() } }
+          : undefined;
+
+        const entries = await queryAllPages(client, databaseId, {
+          filter,
           sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
-        };
-        
-        if (lastBackupTime) {
-          queryBody.filter = {
-            timestamp: 'last_edited_time',
-            last_edited_time: { after: lastBackupTime.toISOString() },
-          };
-        }
-        
-        do {
-          if (cursor) queryBody.start_cursor = cursor;
-          
-          const result = await queryDatabase<{
-            results: Page[];
-            has_more: boolean;
-            next_cursor?: string;
-          }>(client, databaseId, queryBody);
-          
-          entries.push(...result.results);
-          cursor = result.has_more ? result.next_cursor : undefined;
-          
-          process.stdout.write(`\rFetching entries: ${entries.length}...`);
-          
-          if (options.limit && entries.length >= parseInt(options.limit, 10)) {
-            entries.splice(parseInt(options.limit, 10));
-            break;
-          }
-        } while (cursor);
-        
+          limit: options.limit ? parseInt(options.limit, 10) : undefined,
+          onProgress: (fetched) => process.stdout.write(`\rFetching entries: ${fetched}...`),
+        });
+
         console.log(`\rFound ${entries.length} entries to backup.      \n`);
         
         if (entries.length === 0) {

@@ -4,7 +4,7 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { fetchAllBlocks, getPageTitle, getDbTitle } from '../utils/notion-helpers.js';
-import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
+import { getDatabaseSchema, queryAllPages } from '../utils/database-resolver.js';
 import type { Block, Page, Database } from '../types/notion.js';
 
 // Clean block for duplication (remove IDs, etc.)
@@ -300,30 +300,12 @@ export function registerDuplicateCommand(program: Command): void {
         const sourceTitle = getDbTitle(sourceDb);
 
         // Query all entries
-        const entries: Page[] = [];
-        let cursor: string | undefined;
-        
-        do {
-          const body: Record<string, unknown> = { page_size: 100 };
-          if (cursor) body.start_cursor = cursor;
-          if (options.limit && entries.length >= parseInt(options.limit, 10)) break;
-          
-          const result = await queryDatabase(client, databaseId, body) as {
-            results: Page[];
-            has_more: boolean;
-            next_cursor?: string;
-          };
-          
-          entries.push(...result.results);
-          cursor = result.has_more ? result.next_cursor : undefined;
-          
-          process.stdout.write(`\rFetching entries: ${entries.length}...`);
-        } while (cursor);
-        
-        if (options.limit) {
-          entries.splice(parseInt(options.limit, 10));
-        }
-        
+        const entries = await queryAllPages(client, databaseId, {
+          pageSize: 100,
+          limit: options.limit ? parseInt(options.limit, 10) : undefined,
+          onProgress: (fetched) => process.stdout.write(`\rFetching entries: ${fetched}...`),
+        });
+
         console.log(`\rFound ${entries.length} entries to clone.      `);
         
         if (options.dryRun) {

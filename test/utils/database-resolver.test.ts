@@ -358,6 +358,120 @@ describe('DatabaseResolver', () => {
     });
   });
 
+  // ─── queryAllPages ──────────────────────────────────────────────────────────
+
+  describe('queryAllPages()', () => {
+    it('should fetch all pages with automatic pagination', async () => {
+      mockClient.get.mockResolvedValue(mockDatabase);
+      const page1 = { ...mockPage, id: 'page-1' };
+      const page2 = { ...mockPage, id: 'page-2' };
+      const page3 = { ...mockPage, id: 'page-3' };
+
+      mockClient.post
+        .mockResolvedValueOnce(createPaginatedResult([page1, page2], 'cursor-2', true))
+        .mockResolvedValueOnce(createPaginatedResult([page3]));
+
+      const pages = await resolver.queryAllPages(mockClient, 'db-123');
+
+      expect(pages).toHaveLength(3);
+      expect(pages.map(p => p.id)).toEqual(['page-1', 'page-2', 'page-3']);
+      expect(mockClient.post).toHaveBeenCalledTimes(2);
+    });
+
+    it('should pass filter and sorts to every query call', async () => {
+      mockClient.get.mockResolvedValue(mockDatabase);
+      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
+
+      const filter = { property: 'Status', status: { equals: 'Done' } };
+      const sorts = [{ property: 'Name', direction: 'ascending' }];
+
+      await resolver.queryAllPages(mockClient, 'db-123', { filter, sorts: sorts as any });
+
+      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+        page_size: 100,
+        filter,
+        sorts,
+      });
+    });
+
+    it('should respect limit and truncate results', async () => {
+      mockClient.get.mockResolvedValue(mockDatabase);
+      const pages = Array.from({ length: 5 }, (_, i) => ({ ...mockPage, id: `page-${i}` }));
+      mockClient.post.mockResolvedValue(createPaginatedResult(pages, 'cursor-next', true));
+
+      const result = await resolver.queryAllPages(mockClient, 'db-123', { limit: 3 });
+
+      expect(result).toHaveLength(3);
+      // Should not continue paginating after limit reached
+      expect(mockClient.post).toHaveBeenCalledTimes(1);
+    });
+
+    it('should use custom pageSize', async () => {
+      mockClient.get.mockResolvedValue(mockDatabase);
+      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
+
+      await resolver.queryAllPages(mockClient, 'db-123', { pageSize: 50 });
+
+      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+        page_size: 50,
+      });
+    });
+
+    it('should call onProgress callback with running count', async () => {
+      mockClient.get.mockResolvedValue(mockDatabase);
+      const page1 = { ...mockPage, id: 'page-1' };
+      const page2 = { ...mockPage, id: 'page-2' };
+
+      mockClient.post
+        .mockResolvedValueOnce(createPaginatedResult([page1], 'cursor-2', true))
+        .mockResolvedValueOnce(createPaginatedResult([page2]));
+
+      const progressCalls: number[] = [];
+      await resolver.queryAllPages(mockClient, 'db-123', {
+        onProgress: (n) => progressCalls.push(n),
+      });
+
+      expect(progressCalls).toEqual([1, 2]);
+    });
+
+    it('should handle empty results', async () => {
+      mockClient.get.mockResolvedValue(mockDatabase);
+      mockClient.post.mockResolvedValue(createPaginatedResult([]));
+
+      const pages = await resolver.queryAllPages(mockClient, 'db-123');
+
+      expect(pages).toHaveLength(0);
+    });
+
+    it('should work with multi-DS databases', async () => {
+      mockClient.get
+        .mockRejectedValueOnce(new Error(`Notion API Error (400): ${MULTI_DS_ERROR_MESSAGE}`))
+        .mockResolvedValueOnce(mockDataSource);
+      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
+
+      const pages = await resolver.queryAllPages(mockClient, 'multi-ds-db-123');
+
+      expect(pages).toHaveLength(1);
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/multi-ds-db-123/query', {
+        page_size: 100,
+      });
+    });
+
+    it('should pass start_cursor on subsequent pages', async () => {
+      mockClient.get.mockResolvedValue(mockDatabase);
+      mockClient.post
+        .mockResolvedValueOnce(createPaginatedResult([mockPage], 'cursor-xyz', true))
+        .mockResolvedValueOnce(createPaginatedResult([mockPage]));
+
+      await resolver.queryAllPages(mockClient, 'db-123');
+
+      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+        page_size: 100,
+        start_cursor: 'cursor-xyz',
+      });
+    });
+  });
+
   // ─── Edge cases ────────────────────────────────────────────────────────────
 
   describe('Edge cases', () => {

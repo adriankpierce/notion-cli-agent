@@ -4,7 +4,7 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
-import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
+import { getDatabaseSchema, queryDatabase, queryAllPages } from '../utils/database-resolver.js';
 import { getDbTitle } from '../utils/notion-helpers.js';
 import type { Page, Database, PropertySchema } from '../types/notion.js';
 
@@ -82,25 +82,11 @@ export function registerStatsCommand(program: Command): void {
         }
         
         // Query all entries (paginated)
-        const entries: Page[] = [];
-        let cursor: string | undefined;
-        
-        do {
-          const body: Record<string, unknown> = { page_size: 100 };
-          if (cursor) body.start_cursor = cursor;
-          
-          const result = await queryDatabase<{
-            results: Page[];
-            has_more: boolean;
-            next_cursor?: string;
-          }>(client, databaseId, body);
-          
-          entries.push(...result.results);
-          cursor = result.has_more ? result.next_cursor : undefined;
-          
-          process.stdout.write(`\rFetching entries: ${entries.length}...`);
-        } while (cursor);
-        
+        const entries = await queryAllPages(client, databaseId, {
+          pageSize: 100,
+          onProgress: (fetched) => process.stdout.write(`\rFetching entries: ${fetched}...`),
+        });
+
         console.log(`\rFetched ${entries.length} entries.      \n`);
         
         // Calculate breakdowns

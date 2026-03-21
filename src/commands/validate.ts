@@ -3,7 +3,7 @@
  */
 import { Command } from 'commander';
 import { getClient } from '../client.js';
-import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
+import { getDatabaseSchema, queryDatabase, queryAllPages } from '../utils/database-resolver.js';
 import { formatOutput } from '../utils/format.js';
 import { getPageTitle } from '../utils/notion-helpers.js';
 import type { Page, Database, PropertySchema } from '../types/notion.js';
@@ -100,25 +100,11 @@ export function registerValidateCommand(program: Command): void {
         }
         
         // Query all entries
-        const entries: Page[] = [];
-        let cursor: string | undefined;
-        
-        do {
-          const body: Record<string, unknown> = { page_size: 100 };
-          if (cursor) body.start_cursor = cursor;
-          
-          const result = await queryDatabase<{
-            results: Page[];
-            has_more: boolean;
-            next_cursor?: string;
-          }>(client, databaseId, body);
-          
-          entries.push(...result.results);
-          cursor = result.has_more ? result.next_cursor : undefined;
-          
-          process.stdout.write(`\rFetching: ${entries.length} entries...`);
-        } while (cursor);
-        
+        const entries = await queryAllPages(client, databaseId, {
+          pageSize: 100,
+          onProgress: (fetched) => process.stdout.write(`\rFetching: ${fetched} entries...`),
+        });
+
         console.log(`\rAnalyzing ${entries.length} entries...      \n`);
         
         const now = new Date();

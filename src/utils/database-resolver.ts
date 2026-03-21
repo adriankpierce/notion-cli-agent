@@ -9,7 +9,7 @@
  */
 
 import type { NotionClient } from '../client.js';
-import type { Database } from '../types/notion.js';
+import type { Database, PaginatedResponse, Page } from '../types/notion.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,14 @@ export interface ResolvedDatabase {
 
 export interface ResolverOptions {
   dataSourceId?: string;
+}
+
+export interface QueryAllOptions extends ResolverOptions {
+  filter?: Record<string, unknown>;
+  sorts?: Record<string, unknown>[];
+  pageSize?: number;
+  limit?: number;
+  onProgress?: (fetched: number) => void;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -167,6 +175,47 @@ export async function updateDatabase<T = unknown>(
 ): Promise<T> {
   const resolved = await resolveDatabase(client, databaseId, opts?.dataSourceId);
   return client.patch<T>(resolved.updatePath, body);
+}
+
+// ─── Pagination helper ──────────────────────────────────────────────────────
+
+/**
+ * Fetch all pages from a database, handling pagination automatically.
+ * Replaces the 7+ duplicated do/while pagination loops across commands.
+ */
+export async function queryAllPages(
+  client: NotionClient,
+  databaseId: string,
+  opts: QueryAllOptions = {},
+): Promise<Page[]> {
+  const resolved = await resolveDatabase(client, databaseId, opts.dataSourceId);
+  const pages: Page[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const body: Record<string, unknown> = {
+      page_size: opts.pageSize ?? 100,
+    };
+    if (opts.filter) body.filter = opts.filter;
+    if (opts.sorts) body.sorts = opts.sorts;
+    if (cursor) body.start_cursor = cursor;
+
+    const result = await queryDatabaseDirect<PaginatedResponse<Page>>(
+      client, resolved, body,
+    );
+
+    pages.push(...result.results);
+    cursor = result.has_more ? result.next_cursor : undefined;
+
+    opts.onProgress?.(pages.length);
+
+    if (opts.limit && pages.length >= opts.limit) {
+      pages.splice(opts.limit);
+      break;
+    }
+  } while (cursor);
+
+  return pages;
 }
 
 // ─── Normalization ──────────────────────────────────────────────────────────
