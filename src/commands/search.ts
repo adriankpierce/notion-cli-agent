@@ -7,7 +7,7 @@ import { formatOutput, formatPageTitle, formatDatabaseTitle } from '../utils/for
 import { withErrorHandler } from '../utils/command-handler.js';
 
 interface SearchItem {
-  object: 'page' | 'database';
+  object: 'page' | 'database' | 'data_source';
   id: string;
   title?: Array<{ plain_text: string }>;
   properties?: Record<string, unknown>;
@@ -35,7 +35,11 @@ export function registerSearchCommand(program: Command): void {
 
       const body: Record<string, unknown> = {};
       if (query) body.query = query;
-      if (options.type) body.filter = { property: 'object', value: options.type };
+      if (options.type) {
+        // Map user-facing "database" to API's "data_source" (v2025-09-03)
+        const apiType = options.type === 'database' ? 'data_source' : options.type;
+        body.filter = { property: 'object', value: apiType };
+      }
       if (options.sort) {
         body.sort = {
           direction: options.sort,
@@ -58,8 +62,9 @@ export function registerSearchCommand(program: Command): void {
       }
 
       for (const item of result.results) {
-        const icon = item.object === 'page' ? '📄' : '🗄️';
-        const title = item.object === 'page'
+        const isPage = item.object === 'page';
+        const icon = isPage ? '📄' : '🗄️';
+        const title = isPage
           ? formatPageTitle(item)
           : formatDatabaseTitle(item);
         console.log(`${icon} ${title}`);

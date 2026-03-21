@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockPage, mockDatabase, mockBlock, mockBlockChildren, createPaginatedResult } from '../fixtures/notion-data';
+import { mockPage, mockDatabase, mockBlock, mockBlockChildren, createPaginatedResult, setupDatabaseResolution } from '../fixtures/notion-data';
 
 describe('AI Command', () => {
   let program: Command;
@@ -297,19 +297,20 @@ describe('AI Command', () => {
     };
 
     it('should generate agent prompt for database', async () => {
-      mockClient.get.mockResolvedValue(mockDbWithSchema);
+      setupDatabaseResolution(mockClient, mockDbWithSchema);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'ai', 'prompt', 'db-123']);
 
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', { page_size: 2 });
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 2 });
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Working with Notion Database:'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Task management database'));
     });
 
     it('should list property types and options', async () => {
-      mockClient.get.mockResolvedValue(mockDbWithSchema);
+      setupDatabaseResolution(mockClient, mockDbWithSchema);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'ai', 'prompt', 'db-123']);
@@ -322,7 +323,7 @@ describe('AI Command', () => {
     });
 
     it('should include common operations examples', async () => {
-      mockClient.get.mockResolvedValue(mockDbWithSchema);
+      setupDatabaseResolution(mockClient, mockDbWithSchema);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'ai', 'prompt', 'db-123']);
@@ -336,18 +337,18 @@ describe('AI Command', () => {
     });
 
     it('should customize number of example entries', async () => {
-      mockClient.get.mockResolvedValue(mockDbWithSchema);
+      setupDatabaseResolution(mockClient, mockDbWithSchema);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage, mockPage, mockPage]));
 
       await program.parseAsync(['node', 'test', 'ai', 'prompt', 'db-123', '--examples', '3']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', { page_size: 3 });
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 3 });
     });
   });
 
   describe('ai suggest', () => {
     it('should suggest find command for "done" query', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'ai', 'suggest', 'db-123', 'show me done tasks']);
 
@@ -358,7 +359,7 @@ describe('AI Command', () => {
     });
 
     it('should suggest create command for "create" query', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'ai', 'suggest', 'db-123', 'crear nueva tarea']);
 
@@ -368,7 +369,7 @@ describe('AI Command', () => {
     });
 
     it('should suggest update commands', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'ai', 'suggest', 'db-123', 'actualizar tareas']);
 
@@ -379,7 +380,7 @@ describe('AI Command', () => {
     });
 
     it('should suggest archive command', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'ai', 'suggest', 'db-123', 'archivar completadas']);
 
@@ -389,7 +390,7 @@ describe('AI Command', () => {
     });
 
     it('should suggest stats commands', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'ai', 'suggest', 'db-123', 'mostrar estadísticas']);
 
@@ -400,7 +401,7 @@ describe('AI Command', () => {
     });
 
     it('should suggest export command', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'ai', 'suggest', 'db-123', 'export database']);
 
@@ -410,7 +411,7 @@ describe('AI Command', () => {
     });
 
     it('should suggest find overdue command', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'ai', 'suggest', 'db-123', 'tareas vencidas']);
 
@@ -420,7 +421,7 @@ describe('AI Command', () => {
     });
 
     it('should suggest find unassigned command', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await program.parseAsync(['node', 'test', 'ai', 'suggest', 'db-123', 'sin asignar']);
 

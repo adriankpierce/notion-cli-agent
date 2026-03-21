@@ -79,7 +79,7 @@ describe('Search Command', () => {
       await program.parseAsync(['node', 'test', 'search', '--type', 'database']);
 
       expect(mockClient.post).toHaveBeenCalledWith('search', {
-        filter: { property: 'object', value: 'database' },
+        filter: { property: 'object', value: 'data_source' },
         page_size: 10,
       });
     });

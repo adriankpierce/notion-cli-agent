@@ -1,11 +1,14 @@
 /**
- * Database Resolver — detect-and-redirect for multi-data-source databases
+ * Database Resolver — routes database operations to /v1/data_sources/
  *
- * Abstracts the difference between classic databases (/v1/databases/{id})
- * and multi-data-source databases (/v1/data_sources/{id}).
+ * Since API version 2025-09-03, database properties (schema) live on
+ * data_source objects, not database objects. This module discovers the
+ * data_source_id for a database and routes all schema/query/update
+ * operations to the correct /v1/data_sources/ endpoint.
  *
  * Design: This module is the ONLY place that knows about endpoint routing.
- * When Notion API version is upgraded, only this file needs to change.
+ * Command files call getDatabaseSchema(), queryDatabase(), etc. and never
+ * construct database/data_source paths themselves.
  */
 
 import type { NotionClient } from '../client.js';
@@ -14,7 +17,9 @@ import type { Database, PaginatedResponse, Page } from '../types/notion.js';
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface ResolvedDatabase {
-  type: 'classic' | 'data_source';
+  type: 'data_source';
+  databaseId: string;
+  dataSourceId: string;
   schemaPath: string;
   queryPath: string;
   updatePath: string;
@@ -50,11 +55,6 @@ function effectiveDataSourceId(explicit?: string): string | undefined {
   return explicit ?? globalDataSourceId;
 }
 
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-const MULTI_DS_ERROR_PATTERN = /multiple data sources/i;
-const DISCOVERY_VERSION = '2025-09-03';
-
 // ─── Cache ──────────────────────────────────────────────────────────────────
 
 const cache = new Map<string, Promise<ResolvedDatabase>>();
@@ -67,51 +67,28 @@ export function clearResolverCache(): void {
   cache.clear();
 }
 
-// ─── Error detection ────────────────────────────────────────────────────────
-
-export function isMultiDataSourceError(error: unknown): boolean {
-  return error instanceof Error && MULTI_DS_ERROR_PATTERN.test(error.message);
-}
-
 // ─── Core resolution ────────────────────────────────────────────────────────
 
-function buildPaths(prefix: string, id: string) {
+function buildPaths(dataSourceId: string) {
   return {
-    schemaPath: `${prefix}/${id}`,
-    queryPath: `${prefix}/${id}/query`,
-    updatePath: `${prefix}/${id}`,
-  };
-}
-
-async function resolveViaDataSource(
-  client: NotionClient,
-  dataSourceId: string,
-): Promise<ResolvedDatabase> {
-  // data_sources endpoints require Notion-Version >= 2025-09-03
-  const ds = await client.request<Record<string, unknown>>(
-    `data_sources/${dataSourceId}`,
-    { version: DISCOVERY_VERSION },
-  );
-  return {
-    type: 'data_source',
-    ...buildPaths('data_sources', dataSourceId),
-    schema: normalizeToDatabase(ds, dataSourceId),
+    schemaPath: `data_sources/${dataSourceId}`,
+    queryPath: `data_sources/${dataSourceId}/query`,
+    updatePath: `data_sources/${dataSourceId}`,
   };
 }
 
 /**
- * Discover the primary data_source_id for a multi-DS database.
- * Uses Notion-Version: 2025-09-03 to get the data_sources array,
- * then picks the first data source. If there are multiple, the user
- * must specify --data-source-id explicitly.
+ * Discover the data_source_id for a database.
+ * On API v2025-09-03, GET /databases/{id} returns a data_sources array
+ * instead of properties. We pick the first (or only) data source.
+ * If multiple exist, the user must specify --data-source-id explicitly.
  */
 async function discoverDataSourceId(
   client: NotionClient,
   databaseId: string,
 ): Promise<string> {
-  const db = await client.request<{ data_sources?: { id: string; name: string }[] }>(
+  const db = await client.get<{ data_sources?: { id: string; name: string }[] }>(
     `databases/${databaseId}`,
-    { version: DISCOVERY_VERSION },
   );
 
   const sources = db.data_sources;
@@ -132,31 +109,32 @@ async function discoverDataSourceId(
   return sources[0].id;
 }
 
-async function resolveViaLegacy(
+/**
+ * Fetch the data_source schema and build a ResolvedDatabase.
+ */
+async function fetchDataSource(
   client: NotionClient,
   databaseId: string,
+  dataSourceId: string,
 ): Promise<ResolvedDatabase> {
-  try {
-    const db = await client.get<Database>(`databases/${databaseId}`);
-    return {
-      type: 'classic',
-      ...buildPaths('databases', databaseId),
-      schema: db,
-    };
-  } catch (error) {
-    if (!isMultiDataSourceError(error)) throw error;
-    // Discover the real data_source_id via version-upgraded GET
-    const dataSourceId = await discoverDataSourceId(client, databaseId);
-    return resolveViaDataSource(client, dataSourceId);
-  }
+  const ds = await client.get<Record<string, unknown>>(
+    `data_sources/${dataSourceId}`,
+  );
+  return {
+    type: 'data_source',
+    databaseId,
+    dataSourceId,
+    ...buildPaths(dataSourceId),
+    schema: normalizeToDatabase(ds, dataSourceId),
+  };
 }
 
 /**
  * Resolve a database ID to the correct API endpoints.
  *
  * Resolution strategy:
- * 1. If explicit dataSourceId is provided, use /data_sources/ directly
- * 2. Try /databases/ (legacy); on multi-DS error, fallback to /data_sources/
+ * 1. If explicit dataSourceId is provided, fetch that data_source directly
+ * 2. Otherwise, GET /databases/{id} to discover data_sources, then fetch schema
  * 3. Cache the result for the lifetime of the process
  */
 export function resolveDatabase(
@@ -168,8 +146,8 @@ export function resolveDatabase(
 
   if (!cache.has(key)) {
     const promise = dataSourceId
-      ? resolveViaDataSource(client, dataSourceId)
-      : resolveViaLegacy(client, databaseId);
+      ? fetchDataSource(client, databaseId, dataSourceId)
+      : discoverAndResolve(client, databaseId);
 
     cache.set(key, promise);
 
@@ -180,11 +158,19 @@ export function resolveDatabase(
   return cache.get(key)!;
 }
 
+async function discoverAndResolve(
+  client: NotionClient,
+  databaseId: string,
+): Promise<ResolvedDatabase> {
+  const dataSourceId = await discoverDataSourceId(client, databaseId);
+  return fetchDataSource(client, databaseId, dataSourceId);
+}
+
 // ─── High-level helpers ─────────────────────────────────────────────────────
 
 /**
  * Get the schema (properties, title, etc.) for a database.
- * Handles classic and multi-data-source databases transparently.
+ * Discovers the data_source automatically.
  */
 export async function getDatabaseSchema(
   client: NotionClient,
@@ -193,23 +179,6 @@ export async function getDatabaseSchema(
 ): Promise<Database> {
   const resolved = await resolveDatabase(client, databaseId, effectiveDataSourceId(opts?.dataSourceId));
   return resolved.schema;
-}
-
-/**
- * Post to a resolved path, using the right API version for data_sources.
- */
-function postResolved<T>(client: NotionClient, resolved: ResolvedDatabase, path: string, body: Record<string, unknown>): Promise<T> {
-  if (resolved.type === 'data_source') {
-    return client.request<T>(path, { method: 'POST', body, version: DISCOVERY_VERSION });
-  }
-  return client.post<T>(path, body);
-}
-
-function patchResolved<T>(client: NotionClient, resolved: ResolvedDatabase, path: string, body: Record<string, unknown>): Promise<T> {
-  if (resolved.type === 'data_source') {
-    return client.request<T>(path, { method: 'PATCH', body, version: DISCOVERY_VERSION });
-  }
-  return client.patch<T>(path, body);
 }
 
 /**
@@ -222,7 +191,7 @@ export async function queryDatabase<T = unknown>(
   opts?: ResolverOptions,
 ): Promise<T> {
   const resolved = await resolveDatabase(client, databaseId, effectiveDataSourceId(opts?.dataSourceId));
-  return postResolved<T>(client, resolved, resolved.queryPath, body);
+  return client.post<T>(resolved.queryPath, body);
 }
 
 /**
@@ -234,7 +203,7 @@ export async function queryDatabaseDirect<T = unknown>(
   resolved: ResolvedDatabase,
   body: Record<string, unknown> = {},
 ): Promise<T> {
-  return postResolved<T>(client, resolved, resolved.queryPath, body);
+  return client.post<T>(resolved.queryPath, body);
 }
 
 /**
@@ -247,14 +216,13 @@ export async function updateDatabase<T = unknown>(
   opts?: ResolverOptions,
 ): Promise<T> {
   const resolved = await resolveDatabase(client, databaseId, effectiveDataSourceId(opts?.dataSourceId));
-  return patchResolved<T>(client, resolved, resolved.updatePath, body);
+  return client.patch<T>(resolved.updatePath, body);
 }
 
 // ─── Pagination helper ──────────────────────────────────────────────────────
 
 /**
  * Fetch all pages from a database, handling pagination automatically.
- * Replaces the 7+ duplicated do/while pagination loops across commands.
  */
 export async function queryAllPages(
   client: NotionClient,
@@ -295,9 +263,7 @@ export async function queryAllPages(
 
 /**
  * Normalize a data_source API response to the Database shape
- * that all command files expect. This is the seam for future migration:
- * when we upgrade to 2025-09-03+, this function adapts the new response
- * format to the existing internal model.
+ * that all command files expect.
  */
 function normalizeToDatabase(
   ds: Record<string, unknown>,

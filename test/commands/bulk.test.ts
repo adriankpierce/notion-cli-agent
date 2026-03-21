@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockDatabase, createPaginatedResult, createMockPage } from '../fixtures/notion-data';
+import { mockDatabase, createPaginatedResult, createMockPage, setupDatabaseResolution } from '../fixtures/notion-data';
 
 describe('Bulk Command', () => {
   let program: Command;
@@ -31,7 +31,7 @@ describe('Bulk Command', () => {
 
   describe('bulk update', () => {
     it('should update matching entries with --yes flag', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([
         createMockPage('1', 'Task 1'),
         createMockPage('2', 'Task 2'),
@@ -46,7 +46,8 @@ describe('Bulk Command', () => {
       ]);
 
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.any(Object),
         page_size: 100,
       }));
@@ -55,7 +56,7 @@ describe('Bulk Command', () => {
     });
 
     it('should show preview without --yes flag', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task 1')]));
 
       await program.parseAsync([
@@ -70,7 +71,7 @@ describe('Bulk Command', () => {
     });
 
     it('should support dry run mode', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task 1')]));
 
       await program.parseAsync([
@@ -85,7 +86,7 @@ describe('Bulk Command', () => {
     });
 
     it('should respect --limit option', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([
         createMockPage('1', 'Task 1'),
         createMockPage('2', 'Task 2'),
@@ -100,13 +101,13 @@ describe('Bulk Command', () => {
         '--yes',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         page_size: 50,
       }));
     });
 
     it('should handle multiple where conditions', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task 1')]));
       mockClient.patch.mockResolvedValue({});
 
@@ -117,7 +118,7 @@ describe('Bulk Command', () => {
         '--yes',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           and: expect.any(Array),
         }),
@@ -125,7 +126,7 @@ describe('Bulk Command', () => {
     });
 
     it('should handle multiple set properties', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task 1')]));
       mockClient.patch.mockResolvedValue({});
 
@@ -145,7 +146,7 @@ describe('Bulk Command', () => {
     });
 
     it('should handle no matching entries', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync([
@@ -160,7 +161,7 @@ describe('Bulk Command', () => {
     });
 
     it('should handle update errors and continue', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([
         createMockPage('1', 'Task 1'),
         createMockPage('2', 'Task 2'),
@@ -183,7 +184,7 @@ describe('Bulk Command', () => {
     });
 
     it('should handle invalid where clause', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
 
       await expect(
         program.parseAsync([
@@ -198,7 +199,7 @@ describe('Bulk Command', () => {
     });
 
     it('should show pagination hint when has_more is true', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue({
         results: [createMockPage('1', 'Task 1')],
         has_more: true,
@@ -215,7 +216,7 @@ describe('Bulk Command', () => {
     });
 
     it('should handle comparison operators in where clause', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync([
@@ -225,7 +226,7 @@ describe('Bulk Command', () => {
         '--dry-run',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Priority',
         }),
@@ -235,7 +236,7 @@ describe('Bulk Command', () => {
 
   describe('bulk archive', () => {
     it('should archive matching entries with --yes flag', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([
         createMockPage('1', 'Task 1'),
         createMockPage('2', 'Task 2'),
@@ -255,7 +256,7 @@ describe('Bulk Command', () => {
     });
 
     it('should show preview without --yes flag', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task 1')]));
 
       await program.parseAsync([
@@ -268,7 +269,7 @@ describe('Bulk Command', () => {
     });
 
     it('should support dry run mode', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task 1')]));
 
       await program.parseAsync([
@@ -282,7 +283,7 @@ describe('Bulk Command', () => {
     });
 
     it('should handle archive errors', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([
         createMockPage('1', 'Task 1'),
         createMockPage('2', 'Task 2'),
@@ -303,7 +304,7 @@ describe('Bulk Command', () => {
 
   describe('bulk delete', () => {
     it('should archive entries (delete is alias for archive)', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([
         createMockPage('1', 'Task 1'),
         createMockPage('2', 'Task 2'),
@@ -323,7 +324,7 @@ describe('Bulk Command', () => {
     });
 
     it('should support dry run mode', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([createMockPage('1', 'Task 1')]));
 
       await program.parseAsync([
@@ -354,7 +355,7 @@ describe('Bulk Command', () => {
     });
 
     it('should handle query errors', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockRejectedValue(new Error('Query failed'));
 
       await expect(

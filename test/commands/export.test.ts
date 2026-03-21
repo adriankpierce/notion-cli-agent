@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockPage, mockDatabase, createPaginatedResult } from '../fixtures/notion-data';
+import { mockPage, mockDatabase, createPaginatedResult, setupDatabaseResolution } from '../fixtures/notion-data';
 import * as fs from 'fs';
 
 describe('Export Command', () => {
@@ -295,17 +295,19 @@ describe('Export Command', () => {
 
   describe('export database', () => {
     it('should export database to vault folder', async () => {
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage, { ...mockPage, id: 'page-2' }]));
       mockClient.get.mockResolvedValue({ results: [], has_more: false });
 
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', { page_size: 100 });
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 100 });
       expect(mockFS.has('/vault/Test Page.md')).toBe(true);
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Exported 2 pages'));
     });
 
     it('should create subfolder when --folder is specified', async () => {
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
       mockClient.get.mockResolvedValue({ results: [], has_more: false });
 
@@ -317,6 +319,7 @@ describe('Export Command', () => {
 
     it('should export with content when --content is specified', async () => {
       const mockPageBlocks = { results: [{ id: 'b1', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', plain_text: 'Content' }] }, has_children: false }], has_more: false };
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
       mockClient.get.mockResolvedValue(mockPageBlocks);
 
@@ -327,23 +330,25 @@ describe('Export Command', () => {
     });
 
     it('should respect --limit option', async () => {
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage, { ...mockPage, id: 'page-2' }, { ...mockPage, id: 'page-3' }]));
       mockClient.get.mockResolvedValue({ results: [], has_more: false });
 
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault', '--limit', '2']);
 
       // queryAllPages uses page_size 100 internally, limit is applied post-fetch
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', { page_size: 100 });
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 100 });
     });
 
     it('should apply --filter option', async () => {
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
       mockClient.get.mockResolvedValue({ results: [], has_more: false });
 
       const filter = JSON.stringify({ property: 'Status', status: { equals: 'Done' } });
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault', '--filter', filter]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
         filter: { property: 'Status', status: { equals: 'Done' } },
         page_size: 100,
       });
@@ -360,6 +365,7 @@ describe('Export Command', () => {
         has_more: false,
       };
 
+      setupDatabaseResolution(mockClient);
       let callCount = 0;
       mockClient.post.mockImplementation(async (path: string, body: any) => {
         callCount++;
@@ -392,6 +398,7 @@ describe('Export Command', () => {
         },
       };
 
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([pageWithSpecialChars]));
       mockClient.get.mockResolvedValue({ results: [], has_more: false });
 
@@ -417,9 +424,8 @@ describe('Export Command', () => {
     it('should handle content fetch errors gracefully', async () => {
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
       // Resolver needs schema resolution to succeed, then block fetch fails
-      mockClient.get
-        .mockResolvedValueOnce(mockDatabase)
-        .mockRejectedValue(new Error('Block fetch failed'));
+      setupDatabaseResolution(mockClient);
+      mockClient.get.mockRejectedValue(new Error('Block fetch failed'));
 
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault', '--content']);
 
@@ -441,7 +447,7 @@ describe('Export Command', () => {
     });
 
     it('should handle database export errors', async () => {
-      mockClient.post.mockRejectedValue(new Error('Database not found'));
+      mockClient.get.mockRejectedValue(new Error('Database not found'));
 
       await expect(
         program.parseAsync(['node', 'test', 'export', 'database', 'invalid-db', '--vault', '/vault'])

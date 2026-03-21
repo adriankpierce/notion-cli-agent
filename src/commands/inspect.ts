@@ -98,9 +98,9 @@ export function registerInspectCommand(program: Command): void {
     .action(withErrorHandler(async (options) => {
       const client = getClient();
 
-      // Search for all databases
+      // Search for all databases (data_source in API v2025-09-03)
       const result = await client.post('search', {
-        filter: { property: 'object', value: 'database' },
+        filter: { property: 'object', value: 'data_source' },
         page_size: parseInt(options.limit, 10),
       }) as { results: DatabaseWithDataSources[] };
 

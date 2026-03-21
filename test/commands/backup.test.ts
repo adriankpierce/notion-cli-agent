@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockDatabase, mockPage, createPaginatedResult } from '../fixtures/notion-data';
+import { mockDatabase, mockPage, createPaginatedResult, setupDatabaseResolution } from '../fixtures/notion-data';
 
 describe('Backup Command', () => {
   let program: Command;
@@ -50,13 +50,14 @@ describe('Backup Command', () => {
 
   describe('basic backup', () => {
     it('should backup database to output directory', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup']);
 
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         page_size: 100,
         sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
       }));
@@ -67,7 +68,7 @@ describe('Backup Command', () => {
       // Should save schema.json
       expect(mockFS.has('/backup/schema.json')).toBe(true);
       const schema = JSON.parse(mockFS.get('/backup/schema.json') || '{}');
-      expect(schema.id).toBe('db-123');
+      expect(schema.id).toBe('ds-456');
 
       // Should save index.json
       expect(mockFS.has('/backup/index.json')).toBe(true);
@@ -84,7 +85,7 @@ describe('Backup Command', () => {
     });
 
     it('should save pages in JSON format by default', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup']);
@@ -102,7 +103,7 @@ describe('Backup Command', () => {
     });
 
     it('should save pages in markdown format with --format markdown', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--format', 'markdown']);
@@ -126,7 +127,7 @@ describe('Backup Command', () => {
         has_more: false,
       };
 
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       let callCount = 0;
       mockClient.post.mockImplementation(async (path: string, body: any) => {
         callCount++;
@@ -136,7 +137,7 @@ describe('Backup Command', () => {
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup']);
 
       expect(mockClient.post).toHaveBeenCalledTimes(2);
-      expect(mockClient.post).toHaveBeenNthCalledWith(2, 'databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenNthCalledWith(2, 'data_sources/ds-456/query', expect.objectContaining({
         start_cursor: 'cursor-123',
       }));
 
@@ -151,7 +152,7 @@ describe('Backup Command', () => {
         { ...mockPage, id: 'page-2' },
         { ...mockPage, id: 'page-3' },
       ];
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult(pages));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--limit', '2']);
@@ -165,7 +166,7 @@ describe('Backup Command', () => {
     });
 
     it('should handle empty database', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup']);
@@ -197,11 +198,8 @@ describe('Backup Command', () => {
     };
 
     it('should fetch and save page content with --content', async () => {
-      mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('databases/')) return mockDatabase;
-        if (path.startsWith('blocks/')) return mockBlocks;
-        throw new Error('Unexpected path');
-      });
+      setupDatabaseResolution(mockClient);
+      mockClient.get.mockResolvedValue(mockBlocks);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--content']);
@@ -219,11 +217,8 @@ describe('Backup Command', () => {
     });
 
     it('should handle content fetch errors gracefully', async () => {
-      mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('databases/')) return mockDatabase;
-        if (path.startsWith('blocks/')) throw new Error('Block fetch failed');
-        throw new Error('Unexpected path');
-      });
+      setupDatabaseResolution(mockClient);
+      mockClient.get.mockRejectedValue(new Error('Block fetch failed'));
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--content']);
@@ -235,11 +230,8 @@ describe('Backup Command', () => {
     });
 
     it('should include content in markdown format', async () => {
-      mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('databases/')) return mockDatabase;
-        if (path.startsWith('blocks/')) return mockBlocks;
-        throw new Error('Unexpected path');
-      });
+      setupDatabaseResolution(mockClient);
+      mockClient.get.mockResolvedValue(mockBlocks);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--content', '--format', 'markdown']);
@@ -263,7 +255,7 @@ describe('Backup Command', () => {
 
     it('should perform incremental backup with --incremental', async () => {
       mockFS.set('/backup/.backup-meta.json', JSON.stringify(previousMeta));
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--incremental']);
@@ -271,7 +263,7 @@ describe('Backup Command', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Incremental backup since'));
 
       // Should query with last_edited_time filter
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         filter: {
           timestamp: 'last_edited_time',
           last_edited_time: { after: '2026-01-15T00:00:00.000Z' },
@@ -280,23 +272,23 @@ describe('Backup Command', () => {
     });
 
     it('should perform full backup if no previous metadata exists', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--incremental']);
 
       // Should not have filter in query
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
         page_size: 100,
       }));
-      expect(mockClient.post).toHaveBeenCalledWith('databases/db-123/query', expect.not.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.not.objectContaining({
         filter: expect.anything(),
       }));
     });
 
     it('should update metadata after incremental backup', async () => {
       mockFS.set('/backup/.backup-meta.json', JSON.stringify(previousMeta));
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--incremental']);
@@ -320,7 +312,7 @@ describe('Backup Command', () => {
     });
 
     it('should handle query errors', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockRejectedValue(new Error('Query failed'));
 
       await expect(
@@ -333,7 +325,7 @@ describe('Backup Command', () => {
 
   describe('output formats', () => {
     it('should include size summary in MB', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup']);
@@ -343,7 +335,7 @@ describe('Backup Command', () => {
     });
 
     it('should show database title and entry count', async () => {
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage, { ...mockPage, id: 'page-2' }]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup']);
@@ -362,7 +354,7 @@ describe('Backup Command', () => {
           },
         },
       };
-      mockClient.get.mockResolvedValue(mockDatabase);
+      setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([pageWithSpecialChars]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup']);

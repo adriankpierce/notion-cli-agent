@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
-import { mockPage, mockDatabase, mockBlockChildren, mockBlock, mockHeadingBlock, mockCodeBlock } from '../fixtures/notion-data';
+import { mockPage, mockDatabase, mockBlockChildren, mockBlock, mockHeadingBlock, mockCodeBlock, setupDatabaseResolution, mockMultiDsDatabase, mockDataSource } from '../fixtures/notion-data';
 
 describe('Pages Command', () => {
   let program: Command;
@@ -131,12 +131,14 @@ describe('Pages Command', () => {
     });
 
     it('should auto-detect title property from database schema', async () => {
-      mockClient.get.mockResolvedValue({
+      const customDb = {
+        ...mockDatabase,
         properties: {
-          'Task Name': { type: 'title' },
-          Status: { type: 'status' },
+          'Task Name': { id: 'task-name', type: 'title', title: {} },
+          Status: { id: 'status', type: 'status', status: {} },
         },
-      });
+      };
+      setupDatabaseResolution(mockClient, customDb);
 
       const createdPage = { ...mockPage, id: 'new-page-123', url: 'https://notion.so/new-page-123' };
       mockClient.post.mockResolvedValue(createdPage);
@@ -148,6 +150,7 @@ describe('Pages Command', () => {
       ]);
 
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
       expect(mockClient.post).toHaveBeenCalledWith('pages', {
         parent: { database_id: 'db-123' },
         properties: {
@@ -382,10 +385,9 @@ describe('Pages Command', () => {
     });
 
     it('should rename title by auto-detecting title property from parent database', async () => {
-      // First call: get page (to find parent DB), second call: get DB schema
-      mockClient.get
-        .mockResolvedValueOnce(mockPage)
-        .mockResolvedValueOnce(mockDatabase);
+      // First call: get page (to find parent DB), then resolver: discovery + schema
+      mockClient.get.mockResolvedValueOnce(mockPage);
+      setupDatabaseResolution(mockClient);
       mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
 
       await program.parseAsync([
@@ -395,6 +397,7 @@ describe('Pages Command', () => {
 
       expect(mockClient.get).toHaveBeenCalledWith('pages/page-123');
       expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
       expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
         properties: {
           Name: { title: [{ text: { content: 'Renamed Page' } }] },
@@ -461,9 +464,8 @@ describe('Pages Command', () => {
     });
 
     it('should rename title together with other properties', async () => {
-      mockClient.get
-        .mockResolvedValueOnce(mockPage)
-        .mockResolvedValueOnce(mockDatabase);
+      mockClient.get.mockResolvedValueOnce(mockPage);
+      setupDatabaseResolution(mockClient);
       mockClient.patch.mockResolvedValue({ ...mockPage, id: 'page-123' });
 
       await program.parseAsync([
