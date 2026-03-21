@@ -56,29 +56,51 @@ export function registerSearchCommand(program: Command): void {
           timestamp: 'last_edited_time',
         };
       }
-      if (options.limit) body.page_size = parseInt(options.limit, 10);
+      const needsPostFilter = options.db || options.exact;
+      const requestLimit = parseInt(options.limit || '10', 10);
+      body.page_size = needsPostFilter ? 100 : requestLimit;
       if (options.cursor) body.start_cursor = options.cursor;
 
-      const result = await client.post<SearchResult>('search', body);
+      // When post-filtering (--db, --exact), paginate until we have enough
+      // matches or exhaust the cursor. Without post-filters, single request.
+      let items: SearchItem[] = [];
+      let lastHasMore = false;
+      let lastCursor: string | null = null;
 
-      let items = result.results;
+      let cursor: string | undefined = options.cursor;
+      do {
+        if (cursor) body.start_cursor = cursor;
+        const result = await client.post<SearchResult>('search', body);
 
-      // --db: filter to pages whose parent matches
-      if (options.db) {
-        items = items.filter(item => {
-          if (!item.parent) return false;
-          const parentId = getParentDatabaseId(item.parent as any);
-          return parentId === options.db;
-        });
-      }
+        let batch = result.results;
 
-      // --exact: filter to exact title matches
-      if (options.exact && query) {
-        const lowerQuery = query.toLowerCase();
-        items = items.filter(item => {
-          const title = getItemTitle(item);
-          return title.toLowerCase() === lowerQuery;
-        });
+        if (options.db) {
+          batch = batch.filter(item => {
+            if (!item.parent) return false;
+            const parentId = getParentDatabaseId(item.parent as any);
+            return parentId === options.db;
+          });
+        }
+
+        if (options.exact && query) {
+          const lowerQuery = query.toLowerCase();
+          batch = batch.filter(item => getItemTitle(item).toLowerCase() === lowerQuery);
+        }
+
+        items.push(...batch);
+        lastHasMore = result.has_more;
+        lastCursor = result.next_cursor;
+
+        // Stop conditions: enough results, no more pages, or no post-filter
+        if (!needsPostFilter) break;
+        if (options.first && items.length >= 1) break;
+        if (items.length >= requestLimit) break;
+        cursor = result.has_more ? (result.next_cursor ?? undefined) : undefined;
+      } while (cursor);
+
+      // Trim to requested limit
+      if (!options.first && items.length > requestLimit) {
+        items = items.slice(0, requestLimit);
       }
 
       // --first: return one result or exit 1
@@ -91,7 +113,7 @@ export function registerSearchCommand(program: Command): void {
       }
 
       if (options.json) {
-        console.log(formatOutput(options.first ? items[0] : { ...result, results: items }));
+        console.log(formatOutput(options.first ? items[0] : { results: items, has_more: lastHasMore, next_cursor: lastCursor }));
         return;
       }
 
@@ -107,7 +129,7 @@ export function registerSearchCommand(program: Command): void {
           const type = item.object === 'page' ? 'page' : 'db';
           console.log(`[${type}] ${item.id} ${title}`);
         }
-        if (result.has_more && !options.first) {
+        if (lastHasMore && !options.first) {
           console.log(`(more results available)`);
         }
         return;
@@ -123,8 +145,8 @@ export function registerSearchCommand(program: Command): void {
         console.log('');
       }
 
-      if (result.has_more && !options.first) {
-        console.log(`More results available. Use --cursor ${result.next_cursor}`);
+      if (lastHasMore && !options.first) {
+        console.log(`More results available. Use --cursor ${lastCursor}`);
       }
     }));
 }

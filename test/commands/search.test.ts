@@ -158,7 +158,7 @@ describe('Search Command', () => {
 
       await program.parseAsync(['node', 'test', 'search', '--json']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"object": "list"'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"results"'));
     });
 
     it('should format pages with icon', async () => {
@@ -267,6 +267,20 @@ describe('Search Command', () => {
       await program.parseAsync(['node', 'test', 'search', 'test', '--db', 'db-none']);
 
       expect(console.log).toHaveBeenCalledWith('No results found.');
+    });
+
+    it('should paginate through results when --db filters out first page', async () => {
+      const wrongDb = { ...createMockPage('page-1', 'Wrong'), parent: { type: 'data_source_id', database_id: 'db-other' } };
+      const rightDb = { ...createMockPage('page-2', 'Right'), parent: { type: 'data_source_id', database_id: 'db-target' } };
+
+      mockClient.post
+        .mockResolvedValueOnce({ results: [wrongDb], has_more: true, next_cursor: 'cursor-2' })
+        .mockResolvedValueOnce({ results: [rightDb], has_more: false, next_cursor: null });
+
+      await program.parseAsync(['node', 'test', 'search', 'test', '--db', 'db-target', '--first']);
+
+      expect(mockClient.post).toHaveBeenCalledTimes(2);
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Right'));
     });
   });
 

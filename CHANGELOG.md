@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`search --llm`** — compact output: `[type] id title`.
 - **`db query --title <value>`** — auto-detects title property from schema and builds exact title filter.
 - **`db query --llm`** — compact output: `id title`.
-- **`resolvePropertyName()`** — case-insensitive, whitespace-tolerant property name matching for `--prop`, `--clear-prop`, and `--filter-prop`.
+- **`resolvePropertyName()`** — case-insensitive, whitespace-tolerant property name matching, used by `--clear-prop`. Available as a shared helper for future use by other commands.
 
 ## [0.9.1] - 2026-03-21
 
