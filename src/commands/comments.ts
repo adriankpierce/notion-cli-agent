@@ -4,6 +4,8 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
+import { withErrorHandler } from '../utils/command-handler.js';
+import type { PaginatedResponse } from '../types/notion.js';
 
 interface Comment {
   id: string;
@@ -26,74 +28,58 @@ export function registerCommentsCommand(program: Command): void {
     .option('-l, --limit <number>', 'Max results', '100')
     .option('--cursor <cursor>', 'Pagination cursor')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (blockId: string, options) => {
-      try {
-        const client = getClient();
-        
-        const query: Record<string, string | number> = { block_id: blockId };
-        if (options.limit) query.page_size = parseInt(options.limit, 10);
-        if (options.cursor) query.start_cursor = options.cursor;
+    .action(withErrorHandler(async (blockId: string, options) => {
+      const client = getClient();
 
-        const result = await client.get('comments', query);
+      const query: Record<string, string | number> = { block_id: blockId };
+      if (options.limit) query.page_size = parseInt(options.limit, 10);
+      if (options.cursor) query.start_cursor = options.cursor;
 
-        if (options.json) {
-          console.log(formatOutput(result));
-          return;
-        }
+      const result = await client.get('comments', query) as PaginatedResponse<Comment>;
 
-        const typedResult = result as {
-          results: Comment[];
-          has_more: boolean;
-          next_cursor: string | null;
-        };
-
-        if (typedResult.results.length === 0) {
-          console.log('No comments found.');
-          return;
-        }
-
-        for (const comment of typedResult.results) {
-          const text = comment.rich_text.map(t => t.plain_text).join('');
-          const date = new Date(comment.created_time).toLocaleString();
-          console.log(`💬 ${text}`);
-          console.log(`   ID: ${comment.id}`);
-          console.log(`   Date: ${date}`);
-          console.log('');
-        }
-
-        if (typedResult.has_more) {
-          console.log(`More results available. Use --cursor ${typedResult.next_cursor}`);
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
+      if (options.json) {
+        console.log(formatOutput(result));
+        return;
       }
-    });
+
+      if (result.results.length === 0) {
+        console.log('No comments found.');
+        return;
+      }
+
+      for (const comment of result.results) {
+        const text = comment.rich_text.map(t => t.plain_text).join('');
+        const date = new Date(comment.created_time).toLocaleString();
+        console.log(`💬 ${text}`);
+        console.log(`   ID: ${comment.id}`);
+        console.log(`   Date: ${date}`);
+        console.log('');
+      }
+
+      if (result.has_more) {
+        console.log(`More results available. Use --cursor ${result.next_cursor}`);
+      }
+    }));
 
   // Get comment
   comments
     .command('get <comment_id>')
     .description('Retrieve a specific comment')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (commentId: string, options) => {
-      try {
-        const client = getClient();
-        const comment = await client.get(`comments/${commentId}`) as Comment;
+    .action(withErrorHandler(async (commentId: string, options) => {
+      const client = getClient();
+      const comment = await client.get(`comments/${commentId}`) as Comment;
 
-        if (options.json) {
-          console.log(formatOutput(comment));
-        } else {
-          const text = comment.rich_text.map(t => t.plain_text).join('');
-          console.log(`💬 ${text}`);
-          console.log(`ID: ${comment.id}`);
-          console.log(`Discussion: ${comment.discussion_id}`);
-          console.log(`Date: ${new Date(comment.created_time).toLocaleString()}`);
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
+      if (options.json) {
+        console.log(formatOutput(comment));
+      } else {
+        const text = comment.rich_text.map(t => t.plain_text).join('');
+        console.log(`💬 ${text}`);
+        console.log(`ID: ${comment.id}`);
+        console.log(`Discussion: ${comment.discussion_id}`);
+        console.log(`Date: ${new Date(comment.created_time).toLocaleString()}`);
       }
-    });
+    }));
 
   // Create comment
   comments
@@ -103,37 +89,32 @@ export function registerCommentsCommand(program: Command): void {
     .option('--discussion <discussion_id>', 'Discussion ID to reply to')
     .requiredOption('-t, --text <text>', 'Comment text')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (options) => {
-      try {
-        if (!options.page && !options.discussion) {
-          console.error('Error: Either --page or --discussion is required');
-          process.exit(1);
-        }
-
-        const client = getClient();
-
-        const body: Record<string, unknown> = {
-          rich_text: [{ type: 'text', text: { content: options.text } }],
-        };
-
-        if (options.page) {
-          body.parent = { page_id: options.page };
-        } else if (options.discussion) {
-          body.discussion_id = options.discussion;
-        }
-
-        const comment = await client.post('comments', body) as Comment;
-
-        if (options.json) {
-          console.log(formatOutput(comment));
-        } else {
-          console.log('✅ Comment created');
-          console.log('ID:', comment.id);
-          console.log('Discussion:', comment.discussion_id);
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
+    .action(withErrorHandler(async (options) => {
+      if (!options.page && !options.discussion) {
+        console.error('Error: Either --page or --discussion is required');
         process.exit(1);
       }
-    });
+
+      const client = getClient();
+
+      const body: Record<string, unknown> = {
+        rich_text: [{ type: 'text', text: { content: options.text } }],
+      };
+
+      if (options.page) {
+        body.parent = { page_id: options.page };
+      } else if (options.discussion) {
+        body.discussion_id = options.discussion;
+      }
+
+      const comment = await client.post('comments', body) as Comment;
+
+      if (options.json) {
+        console.log(formatOutput(comment));
+      } else {
+        console.log('✅ Comment created');
+        console.log('ID:', comment.id);
+        console.log('Discussion:', comment.discussion_id);
+      }
+    }));
 }

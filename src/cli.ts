@@ -18,6 +18,7 @@
 
 import { Command } from 'commander';
 import { initClient } from './client.js';
+import { setGlobalDataSourceId } from './utils/database-resolver.js';
 import { registerSearchCommand } from './commands/search.js';
 import { registerPagesCommand } from './commands/pages.js';
 import { registerDatabasesCommand } from './commands/databases.js';
@@ -46,10 +47,12 @@ program
   .description('Full-featured CLI for Notion API - built for humans AND AI agents\n\n  💡 AI Agents: Run "notion quickstart" for a complete quick reference guide')
   .version('0.4.2')
   .option('--token <token>', 'Notion API token (or set NOTION_TOKEN env var)')
+  .option('--data-source-id <id>', 'Explicit data source ID for multi-data-source databases')
   .hook('preAction', (thisCommand) => {
     const opts = thisCommand.opts();
     try {
       initClient(opts.token);
+      setGlobalDataSourceId(opts.dataSourceId);
     } catch (error) {
       console.error('Error:', (error as Error).message);
       process.exit(1);

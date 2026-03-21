@@ -6,6 +6,8 @@ import { getClient } from '../client.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { markdownToBlocks } from '../utils/markdown.js';
+import { getDatabaseSchema } from '../utils/database-resolver.js';
+import { withErrorHandler } from '../utils/command-handler.js';
 import type { Database, PropertySchema } from '../types/notion.js';
 
 interface FrontMatter {
@@ -211,14 +213,13 @@ export function registerImportCommand(program: Command): void {
     .option('--content', 'Also import page content (not just frontmatter)')
     .option('--dry-run', 'Show what would be imported without making changes')
     .option('--limit <number>', 'Max files to import')
-    .action(async (vaultPath: string, options) => {
-      try {
+    .action(withErrorHandler(async (vaultPath: string, options) => {
         const client = getClient();
-        
+
         // Get database schema
-        const db = await client.get(`databases/${options.to}`) as Database;
+        const db = await getDatabaseSchema(client, options.to);
         const titleProp = findTitleProperty(db.properties);
-        
+
         // Find markdown files
         const basePath = options.folder 
           ? path.join(vaultPath, options.folder)
@@ -306,11 +307,7 @@ export function registerImportCommand(program: Command): void {
         }
         
         console.log(`\n\n✅ Imported ${imported} files${failed > 0 ? `, ${failed} failed` : ''}`);
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 
   // Import from CSV
   importCmd
@@ -320,14 +317,13 @@ export function registerImportCommand(program: Command): void {
     .option('--title-column <name>', 'Column to use as page title', 'Name')
     .option('--dry-run', 'Show what would be imported without making changes')
     .option('--limit <number>', 'Max rows to import')
-    .action(async (filePath: string, options) => {
-      try {
+    .action(withErrorHandler(async (filePath: string, options) => {
         const client = getClient();
-        
+
         // Get database schema
-        const db = await client.get(`databases/${options.to}`) as Database;
+        const db = await getDatabaseSchema(client, options.to);
         const titleProp = findTitleProperty(db.properties);
-        
+
         // Read CSV
         const content = fs.readFileSync(filePath, 'utf-8');
         const lines = content.split('\n').filter(l => l.trim());
@@ -444,11 +440,7 @@ export function registerImportCommand(program: Command): void {
         }
         
         console.log(`\n\n✅ Imported ${imported} rows${failed > 0 ? `, ${failed} failed` : ''}`);
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 
   // Import single markdown file to page
   importCmd
@@ -457,10 +449,9 @@ export function registerImportCommand(program: Command): void {
     .requiredOption('--to <page_id>', 'Target page ID (appends content)')
     .option('--replace', 'Replace existing content (deletes all blocks first)')
     .option('--dry-run', 'Show what would be imported')
-    .action(async (filePath: string, options) => {
-      try {
+    .action(withErrorHandler(async (filePath: string, options) => {
         const client = getClient();
-        
+
         // Read file
         const content = fs.readFileSync(filePath, 'utf-8');
         const { body } = parseFrontMatter(content);
@@ -511,9 +502,5 @@ export function registerImportCommand(program: Command): void {
         }
         
         console.log(`\n\n✅ Imported ${blocks.length} blocks to page`);
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 }

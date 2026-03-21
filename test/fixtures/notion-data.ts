@@ -272,6 +272,84 @@ export function createMockPage(id: string, title: string, properties: any = {}) 
 }
 
 /**
+ * Multi-data-source database fixtures
+ */
+export const MULTI_DS_ERROR_MESSAGE = 'Databases with multiple data sources are not supported in this API version.';
+
+export const mockDataSource = {
+  object: 'data_source' as const,
+  id: 'ds-456',
+  title: [
+    {
+      type: 'text',
+      text: { content: 'Test Data Source', link: null },
+      plain_text: 'Test Data Source',
+    },
+  ],
+  properties: {
+    Name: {
+      id: 'title',
+      type: 'title',
+      title: {},
+    },
+    Value: {
+      id: 'value',
+      type: 'number',
+      number: { format: 'number' },
+    },
+    Status: {
+      id: 'status',
+      type: 'status',
+      status: {
+        options: [
+          { name: 'Active', color: 'green' },
+          { name: 'Inactive', color: 'gray' },
+        ],
+      },
+    },
+  },
+  url: 'https://notion.so/ds-456',
+};
+
+export const mockMultiDsDatabase = {
+  object: 'database' as const,
+  id: 'multi-ds-db-123',
+  title: [
+    {
+      type: 'text',
+      text: { content: 'Multi DS Database', link: null },
+      plain_text: 'Multi DS Database',
+    },
+  ],
+  data_sources: [
+    { id: 'ds-456', name: 'Test Data Source' },
+  ],
+  url: 'https://notion.so/multi-ds-db-123',
+};
+
+export function createMockDataSource(id: string, title: string, properties: any = {}) {
+  return {
+    ...mockDataSource,
+    id,
+    title: [
+      {
+        type: 'text',
+        text: { content: title, link: null },
+        plain_text: title,
+      },
+    ],
+    properties: {
+      Name: {
+        id: 'title',
+        type: 'title',
+        title: {},
+      },
+      ...properties,
+    },
+  };
+}
+
+/**
  * Helper to create a minimal database
  */
 export function createMockDatabase(id: string, title: string, properties: any = {}) {

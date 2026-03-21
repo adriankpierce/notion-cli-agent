@@ -93,6 +93,81 @@ describe('Inspect Command', () => {
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Found 0 accessible database(s)'));
     });
+
+    it('should show [multi-source] tag for databases with data_sources', async () => {
+      const multiSourceDb = {
+        ...mockDatabase,
+        id: 'db-multi',
+        title: [{ plain_text: 'Multi Source DB' }],
+        data_sources: [
+          { id: 'ds-aaa', name: 'Source A' },
+          { id: 'ds-bbb', name: 'Source B' },
+        ],
+      };
+      mockClient.post.mockResolvedValue(createPaginatedResult([multiSourceDb]));
+
+      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[multi-source]'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('ds-aaa'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('ds-bbb'));
+    });
+
+    it('should show [multi-source] tag in compact mode', async () => {
+      const multiSourceDb = {
+        ...mockDatabase,
+        id: 'db-multi',
+        title: [{ plain_text: 'Multi Source DB' }],
+        data_sources: [{ id: 'ds-aaa', name: 'Source A' }],
+      };
+      mockClient.post.mockResolvedValue(createPaginatedResult([multiSourceDb]));
+
+      await program.parseAsync(['node', 'test', 'inspect', 'workspace', '--compact']);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[multi-source]'));
+    });
+
+    it('should continue listing when a database has no properties', async () => {
+      const dbWithNoProps = {
+        object: 'database',
+        id: 'db-noprops',
+        title: [{ plain_text: 'Broken DB' }],
+        properties: undefined,
+      };
+      const normalDb = { ...mockDatabase, id: 'db-normal', title: [{ plain_text: 'Normal DB' }] };
+      mockClient.post.mockResolvedValue(createPaginatedResult([dbWithNoProps, normalDb]));
+
+      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Found 2'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Normal DB'));
+    });
+
+    it('should warn and continue when per-database processing throws', async () => {
+      const badDb = {
+        object: 'database',
+        id: 'db-bad',
+        title: [{ plain_text: 'Bad DB' }],
+        get properties() { throw new Error('Unexpected error'); },
+      };
+      const goodDb = { ...mockDatabase, id: 'db-good', title: [{ plain_text: 'Good DB' }] };
+      mockClient.post.mockResolvedValue(createPaginatedResult([badDb, goodDb]));
+
+      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('db-bad'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Good DB'));
+    });
+
+    it('should not show multi-source indicators for normal databases', async () => {
+      mockClient.post.mockResolvedValue(createPaginatedResult([mockDatabase]));
+
+      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+
+      const logCalls = (console.log as any).mock.calls.flat().join(' ');
+      expect(logCalls).not.toContain('[multi-source]');
+      expect(logCalls).not.toContain('Data sources:');
+    });
   });
 
   describe('inspect schema', () => {

@@ -6,7 +6,9 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
 import { getPageTitle } from '../utils/notion-helpers.js';
-import type { Page, Database, PropertySchema } from '../types/notion.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
+import { withErrorHandler } from '../utils/command-handler.js';
+import type { Page, Database, PropertySchema, PaginatedResponse } from '../types/notion.js';
 
 interface SelectOption {
   name: string;
@@ -184,12 +186,11 @@ export function registerFindCommand(program: Command): void {
     .option('--explain', 'Show the generated filter without executing')
     .option('-j, --json', 'Output raw JSON')
     .option('--llm', 'LLM-friendly output')
-    .action(async (query: string, options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (query: string, options) => {
+      const client = getClient();
         
         // Get database schema first
-        const db = await client.get(`databases/${options.database}`) as Database;
+        const db = await getDatabaseSchema(client, options.database);
         const schema = db.properties;
         
         // Parse the query
@@ -308,10 +309,7 @@ export function registerFindCommand(program: Command): void {
         };
         if (filter) body.filter = filter;
         
-        const result = await client.post(`databases/${options.database}/query`, body) as {
-          results: Page[];
-          has_more: boolean;
-        };
+        const result = await queryDatabase<PaginatedResponse<Page>>(client, options.database, body);
         
         // Output
         if (options.json) {
@@ -357,9 +355,5 @@ export function registerFindCommand(program: Command): void {
         if (result.has_more) {
           console.log(`More results available. Use --limit to fetch more.`);
         }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 }

@@ -4,6 +4,9 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput, formatDatabaseTitle, parseFilter } from '../utils/format.js';
+import { getDatabaseSchema, queryDatabase, updateDatabase } from '../utils/database-resolver.js';
+import { withErrorHandler } from '../utils/command-handler.js';
+import type { Database, PaginatedResponse } from '../types/notion.js';
 
 export function registerDatabasesCommand(program: Command): void {
   const databases = program
@@ -17,27 +20,21 @@ export function registerDatabasesCommand(program: Command): void {
     .command('get <database_id>')
     .description('Retrieve a database by ID')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (databaseId: string, options) => {
-      try {
-        const client = getClient();
-        const db = await client.get(`databases/${databaseId}`);
+    .action(withErrorHandler(async (databaseId: string, options) => {
+      const client = getClient();
+      const db = await getDatabaseSchema(client, databaseId) as Database & Record<string, unknown>;
 
-        if (options.json) {
-          console.log(formatOutput(db));
-        } else {
-          console.log('Database:', formatDatabaseTitle(db));
-          console.log('ID:', (db as { id: string }).id);
-          console.log('\nProperties:');
-          const props = (db as { properties: Record<string, { type: string }> }).properties;
-          for (const [name, prop] of Object.entries(props)) {
-            console.log(`  - ${name}: ${prop.type}`);
-          }
+      if (options.json) {
+        console.log(formatOutput(db));
+      } else {
+        console.log('Database:', formatDatabaseTitle(db));
+        console.log('ID:', db.id);
+        console.log('\nProperties:');
+        for (const [name, prop] of Object.entries(db.properties)) {
+          console.log(`  - ${name}: ${prop.type}`);
         }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
       }
-    });
+    }));
 
   // Query database
   databases
@@ -53,78 +50,67 @@ export function registerDatabasesCommand(program: Command): void {
     .option('-l, --limit <number>', 'Max results', '100')
     .option('--cursor <cursor>', 'Pagination cursor')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (databaseId: string, options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (databaseId: string, options) => {
+      const client = getClient();
 
-        const body: Record<string, unknown> = {};
+      const body: Record<string, unknown> = {};
 
-        // Handle filter
-        if (options.filter) {
-          body.filter = JSON.parse(options.filter);
-        } else if (options.filterProp.length > 0) {
-          const props: string[] = options.filterProp;
-          const types: string[] = options.filterType;
-          const values: string[] = options.filterValue;
-          const propTypes: string[] = options.filterPropType;
+      // Handle filter
+      if (options.filter) {
+        body.filter = JSON.parse(options.filter);
+      } else if (options.filterProp.length > 0) {
+        const props: string[] = options.filterProp;
+        const types: string[] = options.filterType;
+        const values: string[] = options.filterValue;
+        const propTypes: string[] = options.filterPropType;
 
-          if (props.length !== types.length || props.length !== values.length) {
-            console.error('Error: --filter-prop, --filter-type, and --filter-value must be provided the same number of times');
-            process.exit(1);
-          }
-
-          if (propTypes.length !== 0 && propTypes.length !== props.length) {
-            console.error('Error: --filter-prop-type must be provided either for all filter groups or for none');
-            process.exit(1);
-          }
-
-          const filters = props.map((prop, i) =>
-            parseFilter(prop, types[i], values[i], propTypes[i])
-          );
-
-          body.filter = filters.length > 1 ? { and: filters } : filters[0];
+        if (props.length !== types.length || props.length !== values.length) {
+          console.error('Error: --filter-prop, --filter-type, and --filter-value must be provided the same number of times');
+          process.exit(1);
         }
 
-        // Handle sort
-        if (options.sort) {
-          body.sorts = [{
-            property: options.sort,
-            direction: options.sortDir === 'asc' ? 'ascending' : 'descending',
-          }];
+        if (propTypes.length !== 0 && propTypes.length !== props.length) {
+          console.error('Error: --filter-prop-type must be provided either for all filter groups or for none');
+          process.exit(1);
         }
 
-        if (options.limit) body.page_size = parseInt(options.limit, 10);
-        if (options.cursor) body.start_cursor = options.cursor;
+        const filters = props.map((prop, i) =>
+          parseFilter(prop, types[i], values[i], propTypes[i])
+        );
 
-        const result = await client.post(`databases/${databaseId}/query`, body);
-
-        if (options.json) {
-          console.log(formatOutput(result));
-          return;
-        }
-
-        const typedResult = result as {
-          results: Array<{ id: string; properties: Record<string, unknown> }>;
-          has_more: boolean;
-          next_cursor: string | null;
-        };
-
-        console.log(`Found ${typedResult.results.length} items:\n`);
-        
-        for (const item of typedResult.results) {
-          const title = getItemTitle(item);
-          console.log(`📄 ${title}`);
-          console.log(`   ID: ${item.id}`);
-        }
-
-        if (typedResult.has_more) {
-          console.log(`\nMore results available. Use --cursor ${typedResult.next_cursor}`);
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
+        body.filter = filters.length > 1 ? { and: filters } : filters[0];
       }
-    });
+
+      // Handle sort
+      if (options.sort) {
+        body.sorts = [{
+          property: options.sort,
+          direction: options.sortDir === 'asc' ? 'ascending' : 'descending',
+        }];
+      }
+
+      if (options.limit) body.page_size = parseInt(options.limit, 10);
+      if (options.cursor) body.start_cursor = options.cursor;
+
+      const result = await queryDatabase<PaginatedResponse<{ id: string; properties: Record<string, unknown> }>>(client, databaseId, body);
+
+      if (options.json) {
+        console.log(formatOutput(result));
+        return;
+      }
+
+      console.log(`Found ${result.results.length} items:\n`);
+
+      for (const item of result.results) {
+        const title = getItemTitle(item);
+        console.log(`📄 ${title}`);
+        console.log(`   ID: ${item.id}`);
+      }
+
+      if (result.has_more) {
+        console.log(`\nMore results available. Use --cursor ${result.next_cursor}`);
+      }
+    }));
 
   // Create database
   databases
@@ -135,48 +121,43 @@ export function registerDatabasesCommand(program: Command): void {
     .option('--inline', 'Create as inline database')
     .option('-p, --property <name:type...>', 'Add property (e.g., Status:select, Date:date)')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (options) => {
+      const client = getClient();
 
-        const properties: Record<string, { type?: string; title?: object; [key: string]: unknown }> = {
-          Name: { title: {} }, // Default title property
-        };
+      const properties: Record<string, { type?: string; title?: object; [key: string]: unknown }> = {
+        Name: { title: {} }, // Default title property
+      };
 
-        // Parse additional properties
-        if (options.property) {
-          for (const prop of options.property) {
-            const [name, type] = prop.split(':');
-            if (name && type) {
-              properties[name] = { [type]: {} };
-            }
+      // Parse additional properties
+      if (options.property) {
+        for (const prop of options.property) {
+          const [name, type] = prop.split(':');
+          if (name && type) {
+            properties[name] = { [type]: {} };
           }
         }
-
-        const body: Record<string, unknown> = {
-          parent: { page_id: options.parent },
-          title: [{ type: 'text', text: { content: options.title } }],
-          properties,
-        };
-
-        if (options.inline) {
-          body.is_inline = true;
-        }
-
-        const db = await client.post('databases', body);
-
-        if (options.json) {
-          console.log(formatOutput(db));
-        } else {
-          console.log('✅ Database created');
-          console.log('ID:', (db as { id: string }).id);
-          console.log('URL:', (db as { url: string }).url);
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
       }
-    });
+
+      const body: Record<string, unknown> = {
+        parent: { page_id: options.parent },
+        title: [{ type: 'text', text: { content: options.title } }],
+        properties,
+      };
+
+      if (options.inline) {
+        body.is_inline = true;
+      }
+
+      const db = await client.post('databases', body);
+
+      if (options.json) {
+        console.log(formatOutput(db));
+      } else {
+        console.log('✅ Database created');
+        console.log('ID:', (db as { id: string }).id);
+        console.log('URL:', (db as { url: string }).url);
+      }
+    }));
 
   // Update database
   databases
@@ -186,45 +167,40 @@ export function registerDatabasesCommand(program: Command): void {
     .option('--add-prop <name:type>', 'Add a property')
     .option('--remove-prop <name>', 'Remove a property')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (databaseId: string, options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (databaseId: string, options) => {
+      const client = getClient();
 
-        const body: Record<string, unknown> = {};
+      const body: Record<string, unknown> = {};
 
-        if (options.title) {
-          body.title = [{ type: 'text', text: { content: options.title } }];
-        }
-
-        const properties: Record<string, unknown> = {};
-
-        if (options.addProp) {
-          const [name, type] = options.addProp.split(':');
-          if (name && type) {
-            properties[name] = { [type]: {} };
-          }
-        }
-
-        if (options.removeProp) {
-          properties[options.removeProp] = null;
-        }
-
-        if (Object.keys(properties).length > 0) {
-          body.properties = properties;
-        }
-
-        const db = await client.patch(`databases/${databaseId}`, body);
-
-        if (options.json) {
-          console.log(formatOutput(db));
-        } else {
-          console.log('✅ Database updated');
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
+      if (options.title) {
+        body.title = [{ type: 'text', text: { content: options.title } }];
       }
-    });
+
+      const properties: Record<string, unknown> = {};
+
+      if (options.addProp) {
+        const [name, type] = options.addProp.split(':');
+        if (name && type) {
+          properties[name] = { [type]: {} };
+        }
+      }
+
+      if (options.removeProp) {
+        properties[options.removeProp] = null;
+      }
+
+      if (Object.keys(properties).length > 0) {
+        body.properties = properties;
+      }
+
+      const db = await updateDatabase(client, databaseId, body);
+
+      if (options.json) {
+        console.log(formatOutput(db));
+      } else {
+        console.log('✅ Database updated');
+      }
+    }));
 }
 
 function getItemTitle(item: { properties: Record<string, unknown> }): string {

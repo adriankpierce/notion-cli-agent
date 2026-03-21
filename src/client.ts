@@ -25,6 +25,7 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: Record<string, unknown>;
   query?: Record<string, string | number | boolean | undefined>;
+  version?: string;
 }
 
 class RateLimiter {
@@ -66,7 +67,7 @@ export class NotionClient {
   }
 
   async request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
-    const { method = 'GET', body, query } = options;
+    const { method = 'GET', body, query, version } = options;
 
     let url = `${NOTION_API_BASE}/${path}`;
 
@@ -85,7 +86,7 @@ export class NotionClient {
 
     const headers: Record<string, string> = {
       'Authorization': `Bearer ${this.token}`,
-      'Notion-Version': this.version,
+      'Notion-Version': version || this.version,
       'Content-Type': 'application/json',
     };
 

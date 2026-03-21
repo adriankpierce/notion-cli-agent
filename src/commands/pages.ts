@@ -7,6 +7,8 @@ import { getClient } from '../client.js';
 import { formatOutput, formatPageTitle, parseProperties } from '../utils/format.js';
 import { markdownToBlocks } from '../utils/markdown.js';
 import { blocksToMarkdownAsync, fetchAllBlocks, getPageTitle } from '../utils/notion-helpers.js';
+import { getDatabaseSchema } from '../utils/database-resolver.js';
+import { withErrorHandler } from '../utils/command-handler.js';
 import type { Page } from '../types/notion.js';
 
 export function registerPagesCommand(program: Command): void {
@@ -22,34 +24,29 @@ export function registerPagesCommand(program: Command): void {
     .description('Retrieve a page by ID')
     .option('-j, --json', 'Output raw JSON')
     .option('--content', 'Also fetch page content (blocks)')
-    .action(async (pageId: string, options) => {
-      try {
-        const client = getClient();
-        const page = await client.get(`pages/${pageId}`);
+    .action(withErrorHandler(async (pageId: string, options) => {
+      const client = getClient();
+      const page = await client.get(`pages/${pageId}`);
 
-        if (options.content) {
-          const blocks = await client.get(`blocks/${pageId}/children`);
-          if (options.json) {
-            console.log(formatOutput({ page, blocks }));
-          } else {
-            console.log('Page:', formatPageTitle(page));
-            console.log('ID:', (page as { id: string }).id);
-            console.log('\nContent:');
-            console.log(formatOutput(blocks));
-          }
+      if (options.content) {
+        const blocks = await client.get(`blocks/${pageId}/children`);
+        if (options.json) {
+          console.log(formatOutput({ page, blocks }));
         } else {
-          console.log(options.json ? formatOutput(page) : formatPageTitle(page));
-          if (!options.json) {
-            console.log('ID:', (page as { id: string }).id);
-            console.log('\nProperties:');
-            console.log(formatOutput((page as { properties: unknown }).properties));
-          }
+          console.log('Page:', formatPageTitle(page));
+          console.log('ID:', (page as { id: string }).id);
+          console.log('\nContent:');
+          console.log(formatOutput(blocks));
         }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
+      } else {
+        console.log(options.json ? formatOutput(page) : formatPageTitle(page));
+        if (!options.json) {
+          console.log('ID:', (page as { id: string }).id);
+          console.log('\nProperties:');
+          console.log(formatOutput((page as { properties: unknown }).properties));
+        }
       }
-    });
+    }));
 
   // Create page
   pages
@@ -63,11 +60,10 @@ export function registerPagesCommand(program: Command): void {
     .option('-c, --content <text>', 'Initial page content (paragraph)')
     .option('--icon <emoji>', 'Set page icon (emoji character, e.g. 📝)')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (options) => {
+      const client = getClient();
 
-        const parent = options.parentType === 'page'
+      const parent = options.parentType === 'page'
           ? { page_id: options.parent }
           : { database_id: options.parent };
 
@@ -80,7 +76,7 @@ export function registerPagesCommand(program: Command): void {
           // If not specified and parent is database, fetch schema to find title property
           if (!titlePropName && options.parentType === 'database') {
             try {
-              const db = await client.get(`databases/${options.parent}`) as {
+              const db = await getDatabaseSchema(client, options.parent) as {
                 properties: Record<string, { type: string }>;
               };
               // Find the property with type "title"
@@ -135,11 +131,7 @@ export function registerPagesCommand(program: Command): void {
           console.log('ID:', (page as { id: string }).id);
           console.log('URL:', (page as { url: string }).url);
         }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 
   // Update page
   pages
@@ -152,15 +144,14 @@ export function registerPagesCommand(program: Command): void {
     .option('--unarchive', 'Unarchive the page')
     .option('--icon <emoji>', 'Set page icon (emoji character, e.g. 📝)')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (pageId: string, options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (pageId: string, options) => {
+      const client = getClient();
 
-        const body: Record<string, unknown> = {};
-        const properties: Record<string, unknown> = {};
+      const body: Record<string, unknown> = {};
+      const properties: Record<string, unknown> = {};
 
-        if (options.title) {
-          let titlePropName = options.titleProp;
+      if (options.title) {
+        let titlePropName = options.titleProp;
 
           // parentType: 'database' | 'page' | null (null = unknown, page fetch failed)
           let detectedParentType: 'database' | 'page' | null = null;
@@ -171,7 +162,7 @@ export function registerPagesCommand(program: Command): void {
               };
               if (page.parent.type === 'database_id' && page.parent.database_id) {
                 detectedParentType = 'database';
-                const db = await client.get(`databases/${page.parent.database_id}`) as {
+                const db = await getDatabaseSchema(client, page.parent.database_id) as {
                   properties: Record<string, { type: string }>;
                 };
                 for (const [name, prop] of Object.entries(db.properties)) {
@@ -223,42 +214,28 @@ export function registerPagesCommand(program: Command): void {
           console.log('✅ Page updated');
           console.log('ID:', (page as { id: string }).id);
         }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 
   // Archive page (convenience)
   pages
     .command('archive <page_id>')
     .description('Archive a page')
-    .action(async (pageId: string) => {
-      try {
-        const client = getClient();
-        await client.patch(`pages/${pageId}`, { archived: true });
-        console.log('✅ Page archived');
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    .action(withErrorHandler(async (pageId: string) => {
+      const client = getClient();
+      await client.patch(`pages/${pageId}`, { archived: true });
+      console.log('✅ Page archived');
+    }));
 
   // Get page property
   pages
     .command('property <page_id> <property_id>')
     .description('Get a specific page property (for paginated properties like rollups)')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (pageId: string, propertyId: string, options) => {
-      try {
-        const client = getClient();
-        const property = await client.get(`pages/${pageId}/properties/${propertyId}`);
-        console.log(options.json ? formatOutput(property) : property);
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    .action(withErrorHandler(async (pageId: string, propertyId: string, options) => {
+      const client = getClient();
+      const property = await client.get(`pages/${pageId}/properties/${propertyId}`);
+      console.log(options.json ? formatOutput(property) : property);
+    }));
 
   // Read page content as Markdown
   pages
@@ -267,47 +244,42 @@ export function registerPagesCommand(program: Command): void {
     .option('-j, --json', 'Output raw JSON blocks instead of Markdown')
     .option('--no-title', 'Omit the page title heading')
     .option('-o, --output <path>', 'Write to file instead of stdout')
-    .action(async (pageId: string, options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (pageId: string, options) => {
+      const client = getClient();
 
-        if (options.json) {
-          // Raw JSON mode — return all blocks
-          const blocks = await fetchAllBlocks(client, pageId);
-          const output = formatOutput(blocks);
-          if (options.output) {
-            fs.writeFileSync(options.output, output);
-            console.error(`Written to ${options.output}`);
-          } else {
-            console.log(output);
-          }
-          return;
-        }
-
-        let output = '';
-
-        // Include title by default
-        if (options.title !== false) {
-          const page = await client.get(`pages/${pageId}`) as Page;
-          const title = getPageTitle(page);
-          output += `# ${title}\n\n`;
-        }
-
-        // Convert blocks to markdown
-        const content = await blocksToMarkdownAsync(client, pageId);
-        output += content;
-
+      if (options.json) {
+        // Raw JSON mode — return all blocks
+        const blocks = await fetchAllBlocks(client, pageId);
+        const output = formatOutput(blocks);
         if (options.output) {
           fs.writeFileSync(options.output, output);
           console.error(`Written to ${options.output}`);
         } else {
-          process.stdout.write(output);
+          console.log(output);
         }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
+        return;
       }
-    });
+
+      let output = '';
+
+      // Include title by default
+      if (options.title !== false) {
+        const page = await client.get(`pages/${pageId}`) as Page;
+        const title = getPageTitle(page);
+        output += `# ${title}\n\n`;
+      }
+
+      // Convert blocks to markdown
+      const content = await blocksToMarkdownAsync(client, pageId);
+      output += content;
+
+      if (options.output) {
+        fs.writeFileSync(options.output, output);
+        console.error(`Written to ${options.output}`);
+      } else {
+        process.stdout.write(output);
+      }
+    }));
 
   // Write Markdown content to a page
   pages
@@ -316,12 +288,11 @@ export function registerPagesCommand(program: Command): void {
     .option('-f, --file <path>', 'Read Markdown from file')
     .option('--replace', 'Replace existing content (deletes all blocks first). Default is append')
     .option('--dry-run', 'Show what would be written without making changes')
-    .action(async (pageId: string, options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (pageId: string, options) => {
+      const client = getClient();
 
-        // Read markdown from file or stdin
-        let markdown: string;
+      // Read markdown from file or stdin
+      let markdown: string;
         if (options.file) {
           if (!fs.existsSync(options.file)) {
             console.error(`Error: File not found: ${options.file}`);
@@ -392,11 +363,7 @@ export function registerPagesCommand(program: Command): void {
         }
 
         console.error(`Written ${added} blocks to page`);
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 
   // Surgical page editing
   pages
@@ -409,9 +376,8 @@ export function registerPagesCommand(program: Command): void {
     .option('-m, --markdown <text>', 'Replacement Markdown text (inline)')
     .option('--dry-run', 'Show what would change without making changes')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (pageId: string, options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (pageId: string, options) => {
+      const client = getClient();
 
         // Fetch all current blocks
         const allBlocks = await fetchAllBlocks(client, pageId);
@@ -540,11 +506,7 @@ export function registerPagesCommand(program: Command): void {
         } else {
           console.log(`Done: ${summary.join(', ')} block(s)`);
         }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

@@ -4,7 +4,9 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput } from '../utils/format.js';
+import { getDatabaseSchema, queryDatabase, queryAllPages } from '../utils/database-resolver.js';
 import { getDbTitle } from '../utils/notion-helpers.js';
+import { withErrorHandler } from '../utils/command-handler.js';
 import type { Page, Database, PropertySchema } from '../types/notion.js';
 
 interface SelectOption {
@@ -48,12 +50,11 @@ export function registerStatsCommand(program: Command): void {
     .description('Get statistics overview for a database')
     .option('-j, --json', 'Output as JSON')
     .option('--llm', 'LLM-friendly output')
-    .action(async (databaseId: string, options) => {
-      try {
+    .action(withErrorHandler(async (databaseId: string, options) => {
         const client = getClient();
-        
+
         // Get database info
-        const db = await client.get(`databases/${databaseId}`) as Database;
+        const db = await getDatabaseSchema(client, databaseId);
         const title = getDbTitle(db);
         
         // Find status/select properties for breakdown
@@ -81,25 +82,11 @@ export function registerStatsCommand(program: Command): void {
         }
         
         // Query all entries (paginated)
-        const entries: Page[] = [];
-        let cursor: string | undefined;
-        
-        do {
-          const body: Record<string, unknown> = { page_size: 100 };
-          if (cursor) body.start_cursor = cursor;
-          
-          const result = await client.post(`databases/${databaseId}/query`, body) as {
-            results: Page[];
-            has_more: boolean;
-            next_cursor?: string;
-          };
-          
-          entries.push(...result.results);
-          cursor = result.has_more ? result.next_cursor : undefined;
-          
-          process.stdout.write(`\rFetching entries: ${entries.length}...`);
-        } while (cursor);
-        
+        const entries = await queryAllPages(client, databaseId, {
+          pageSize: 100,
+          onProgress: (fetched) => process.stdout.write(`\rFetching entries: ${fetched}...`),
+        });
+
         console.log(`\rFetched ${entries.length} entries.      \n`);
         
         // Calculate breakdowns
@@ -208,11 +195,7 @@ export function registerStatsCommand(program: Command): void {
           const edited = editedByMonth[month] || 0;
           console.log(`  ${month}: ${created} created, ${edited} edited`);
         }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 
   // Timeline view
   stats
@@ -220,24 +203,23 @@ export function registerStatsCommand(program: Command): void {
     .description('Show activity timeline for a database')
     .option('-d, --days <number>', 'Number of days to show', '14')
     .option('-j, --json', 'Output as JSON')
-    .action(async (databaseId: string, options) => {
-      try {
+    .action(withErrorHandler(async (databaseId: string, options) => {
         const client = getClient();
-        
+
         const days = parseInt(options.days, 10);
         const since = new Date();
         since.setDate(since.getDate() - days);
         since.setHours(0, 0, 0, 0);
         
         // Query recently edited entries
-        const result = await client.post(`databases/${databaseId}/query`, {
+        const result = await queryDatabase<{ results: Page[] }>(client, databaseId, {
           filter: {
             timestamp: 'last_edited_time',
             last_edited_time: { on_or_after: since.toISOString() },
           },
           sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
           page_size: 100,
-        }) as { results: Page[] };
+        });
         
         // Group by day
         const byDay: Record<string, Page[]> = {};
@@ -288,9 +270,5 @@ export function registerStatsCommand(program: Command): void {
         }
         
         console.log(`\nTotal: ${result.results.length} entries edited`);
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 }

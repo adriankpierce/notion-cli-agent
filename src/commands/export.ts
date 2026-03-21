@@ -8,7 +8,9 @@ import * as path from 'path';
 import {
   richTextToMarkdown,
 } from '../utils/markdown.js';
+import { queryAllPages } from '../utils/database-resolver.js';
 import { blocksToMarkdownAsync } from '../utils/notion-helpers.js';
+import { withErrorHandler } from '../utils/command-handler.js';
 import type { RichText, Block, Page } from '../types/notion.js';
 
 function getPageTitle(page: Page): string {
@@ -169,42 +171,37 @@ export function registerExportCommand(program: Command): void {
     .option('--obsidian', 'Include Obsidian-compatible frontmatter')
     .option('--no-content', 'Export only frontmatter, no content')
     .option('--no-frontmatter', 'Export only content, no frontmatter')
-    .action(async (pageId: string, options) => {
-      try {
-        const client = getClient();
-        
-        // Fetch page
-        const page = await client.get(`pages/${pageId}`) as Page;
-        const title = getPageTitle(page);
-        
-        let output = '';
-        
-        // Add frontmatter
-        if (options.frontmatter !== false && options.obsidian) {
-          output += generateFrontmatter(page);
-        }
-        
-        // Add title
-        output += `# ${title}\n\n`;
-        
-        // Add content
-        if (options.content !== false) {
-          const content = await blocksToMarkdownAsync(client, pageId);
-          output += content;
-        }
-        
-        // Output
-        if (options.output) {
-          fs.writeFileSync(options.output, output);
-          console.log(`✅ Exported to ${options.output}`);
-        } else {
-          console.log(output);
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
+    .action(withErrorHandler(async (pageId: string, options) => {
+      const client = getClient();
+
+      // Fetch page
+      const page = await client.get(`pages/${pageId}`) as Page;
+      const title = getPageTitle(page);
+
+      let output = '';
+
+      // Add frontmatter
+      if (options.frontmatter !== false && options.obsidian) {
+        output += generateFrontmatter(page);
       }
-    });
+
+      // Add title
+      output += `# ${title}\n\n`;
+
+      // Add content
+      if (options.content !== false) {
+        const content = await blocksToMarkdownAsync(client, pageId);
+        output += content;
+      }
+
+      // Output
+      if (options.output) {
+        fs.writeFileSync(options.output, output);
+        console.log(`✅ Exported to ${options.output}`);
+      } else {
+        console.log(output);
+      }
+    }));
 
   // Export database to Obsidian vault
   exportCmd
@@ -216,9 +213,8 @@ export function registerExportCommand(program: Command): void {
     .option('--content', 'Also export page content (slower)')
     .option('--limit <number>', 'Max entries to export')
     .option('--filter <json>', 'Filter as JSON')
-    .action(async (databaseId: string, options) => {
-      try {
-        const client = getClient();
+    .action(withErrorHandler(async (databaseId: string, options) => {
+      const client = getClient();
         
         // Determine output folder
         const vaultPath = path.resolve(options.vault);
@@ -231,57 +227,36 @@ export function registerExportCommand(program: Command): void {
           fs.mkdirSync(outputFolder, { recursive: true });
         }
         
-        // Query database
-        const body: Record<string, unknown> = {};
-        if (options.limit) body.page_size = parseInt(options.limit, 10);
-        if (options.filter) body.filter = JSON.parse(options.filter);
-        
-        let cursor: string | undefined;
+        // Query all pages from database
+        const pages = await queryAllPages(client, databaseId, {
+          filter: options.filter ? JSON.parse(options.filter) : undefined,
+          limit: options.limit ? parseInt(options.limit, 10) : undefined,
+          onProgress: (n) => process.stdout.write(`\r📄 Fetching ${n} pages...`),
+        });
+
         let exported = 0;
-        
-        do {
-          if (cursor) body.start_cursor = cursor;
-          
-          const result = await client.post(`databases/${databaseId}/query`, body) as {
-            results: Page[];
-            has_more: boolean;
-            next_cursor?: string;
-          };
-          
-          for (const page of result.results) {
-            const title = getPageTitle(page);
-            const filename = sanitizeFilename(title) + '.md';
-            const filepath = path.join(outputFolder, filename);
-            
-            let content = generateFrontmatter(page);
-            content += `# ${title}\n\n`;
-            
-            if (options.content) {
-              try {
-                const pageContent = await blocksToMarkdownAsync(client, page.id);
-                content += pageContent;
-              } catch {
-                content += `<!-- Failed to fetch content -->\n`;
-              }
+        for (const page of pages) {
+          const title = getPageTitle(page);
+          const filename = sanitizeFilename(title) + '.md';
+          const filepath = path.join(outputFolder, filename);
+
+          let content = generateFrontmatter(page);
+          content += `# ${title}\n\n`;
+
+          if (options.content) {
+            try {
+              const pageContent = await blocksToMarkdownAsync(client, page.id);
+              content += pageContent;
+            } catch {
+              content += `<!-- Failed to fetch content -->\n`;
             }
-            
-            fs.writeFileSync(filepath, content);
-            exported++;
-            process.stdout.write(`\r📄 Exported ${exported} pages...`);
           }
-          
-          cursor = result.has_more ? result.next_cursor : undefined;
-          
-          // Respect limit
-          if (options.limit && exported >= parseInt(options.limit, 10)) {
-            cursor = undefined;
-          }
-        } while (cursor);
-        
+
+          fs.writeFileSync(filepath, content);
+          exported++;
+          process.stdout.write(`\r📄 Exported ${exported}/${pages.length} pages...`);
+        }
+
         console.log(`\n✅ Exported ${exported} pages to ${outputFolder}`);
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 }

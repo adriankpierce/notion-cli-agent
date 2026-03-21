@@ -6,7 +6,9 @@ import { getClient } from '../client.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { blocksToMarkdownSync } from '../utils/markdown.js';
-import { fetchAllBlocks, getPageTitle } from '../utils/notion-helpers.js';
+import { fetchAllBlocks, getPageTitle, getDbTitle } from '../utils/notion-helpers.js';
+import { getDatabaseSchema, queryAllPages } from '../utils/database-resolver.js';
+import { withErrorHandler } from '../utils/command-handler.js';
 import type { Block, Page, Database } from '../types/notion.js';
 
 function sanitizeFilename(name: string): string {
@@ -42,8 +44,7 @@ export function registerBackupCommand(program: Command): void {
     .option('--format <type>', 'Output format: json or markdown', 'json')
     .option('--incremental', 'Only backup entries modified since last backup')
     .option('--limit <number>', 'Max entries to backup')
-    .action(async (databaseId: string, options) => {
-      try {
+    .action(withErrorHandler(async (databaseId: string, options) => {
         const client = getClient();
         const outputDir = path.resolve(options.output);
         
@@ -54,8 +55,8 @@ export function registerBackupCommand(program: Command): void {
         
         // Get database info
         console.log('Fetching database schema...');
-        const db = await client.get(`databases/${databaseId}`) as Database;
-        const dbTitle = db.title?.map(t => t.plain_text).join('') || 'Untitled';
+        const db = await getDatabaseSchema(client, databaseId);
+        const dbTitle = getDbTitle(db);
         
         // Save schema
         const schemaPath = path.join(outputDir, 'schema.json');
@@ -73,41 +74,17 @@ export function registerBackupCommand(program: Command): void {
         }
         
         // Query entries
-        const entries: Page[] = [];
-        let cursor: string | undefined;
-        
-        const queryBody: Record<string, unknown> = {
-          page_size: 100,
+        const filter = lastBackupTime
+          ? { timestamp: 'last_edited_time', last_edited_time: { after: lastBackupTime.toISOString() } }
+          : undefined;
+
+        const entries = await queryAllPages(client, databaseId, {
+          filter,
           sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
-        };
-        
-        if (lastBackupTime) {
-          queryBody.filter = {
-            timestamp: 'last_edited_time',
-            last_edited_time: { after: lastBackupTime.toISOString() },
-          };
-        }
-        
-        do {
-          if (cursor) queryBody.start_cursor = cursor;
-          
-          const result = await client.post(`databases/${databaseId}/query`, queryBody) as {
-            results: Page[];
-            has_more: boolean;
-            next_cursor?: string;
-          };
-          
-          entries.push(...result.results);
-          cursor = result.has_more ? result.next_cursor : undefined;
-          
-          process.stdout.write(`\rFetching entries: ${entries.length}...`);
-          
-          if (options.limit && entries.length >= parseInt(options.limit, 10)) {
-            entries.splice(parseInt(options.limit, 10));
-            break;
-          }
-        } while (cursor);
-        
+          limit: options.limit ? parseInt(options.limit, 10) : undefined,
+          onProgress: (fetched) => process.stdout.write(`\rFetching entries: ${fetched}...`),
+        });
+
         console.log(`\rFound ${entries.length} entries to backup.      \n`);
         
         if (entries.length === 0) {
@@ -196,12 +173,7 @@ export function registerBackupCommand(program: Command): void {
         if (options.incremental) {
           console.log(`   Mode: Incremental (since ${lastBackupTime?.toISOString() || 'beginning'})`);
         }
-        
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 }
 
 function generateMarkdown(page: Page, blocks?: Block[]): string {

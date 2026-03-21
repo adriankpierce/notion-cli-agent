@@ -5,7 +5,8 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput, formatBlock } from '../utils/format.js';
 import { parseInlineMarkdown } from '../utils/markdown.js';
-import type { NotionRichTextItem } from '../types/notion.js';
+import { withErrorHandler } from '../utils/command-handler.js';
+import type { NotionRichTextItem, PaginatedResponse } from '../types/notion.js';
 
 export function registerBlocksCommand(program: Command): void {
   const blocks = program
@@ -19,16 +20,11 @@ export function registerBlocksCommand(program: Command): void {
     .command('get <block_id>')
     .description('Retrieve a block by ID')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (blockId: string, options) => {
-      try {
-        const client = getClient();
-        const block = await client.get(`blocks/${blockId}`);
-        console.log(options.json ? formatOutput(block) : formatBlock(block));
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    .action(withErrorHandler(async (blockId: string, options) => {
+      const client = getClient();
+      const block = await client.get(`blocks/${blockId}`);
+      console.log(options.json ? formatOutput(block) : formatBlock(block));
+    }));
 
   // List children
   blocks
@@ -38,39 +34,28 @@ export function registerBlocksCommand(program: Command): void {
     .option('-l, --limit <number>', 'Max results', '100')
     .option('--cursor <cursor>', 'Pagination cursor')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (blockId: string, options) => {
-      try {
-        const client = getClient();
-        
-        const query: Record<string, string | number> = {};
-        if (options.limit) query.page_size = parseInt(options.limit, 10);
-        if (options.cursor) query.start_cursor = options.cursor;
+    .action(withErrorHandler(async (blockId: string, options) => {
+      const client = getClient();
 
-        const result = await client.get(`blocks/${blockId}/children`, query);
+      const query: Record<string, string | number> = {};
+      if (options.limit) query.page_size = parseInt(options.limit, 10);
+      if (options.cursor) query.start_cursor = options.cursor;
 
-        if (options.json) {
-          console.log(formatOutput(result));
-          return;
-        }
+      const result = await client.get(`blocks/${blockId}/children`, query) as PaginatedResponse<unknown>;
 
-        const typedResult = result as {
-          results: Array<unknown>;
-          has_more: boolean;
-          next_cursor: string | null;
-        };
-
-        for (const block of typedResult.results) {
-          console.log(formatBlock(block));
-        }
-
-        if (typedResult.has_more) {
-          console.log(`\nMore results available. Use --cursor ${typedResult.next_cursor}`);
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
+      if (options.json) {
+        console.log(formatOutput(result));
+        return;
       }
-    });
+
+      for (const block of result.results) {
+        console.log(formatBlock(block));
+      }
+
+      if (result.has_more) {
+        console.log(`\nMore results available. Use --cursor ${result.next_cursor}`);
+      }
+    }));
 
   // Append blocks
   blocks
@@ -90,74 +75,69 @@ export function registerBlocksCommand(program: Command): void {
     .option('--callout <text>', 'Add callout block')
     .option('--after <block_id>', 'Insert after this block')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (blockId: string, options) => {
-      try {
-        const client = getClient();
-        const children: Array<Record<string, unknown>> = [];
+    .action(withErrorHandler(async (blockId: string, options) => {
+      const client = getClient();
+      const children: Array<Record<string, unknown>> = [];
 
-        // Build blocks from options
-        if (options.text) {
-          children.push(createParagraph(options.text));
+      // Build blocks from options
+      if (options.text) {
+        children.push(createParagraph(options.text));
+      }
+      if (options.heading1) {
+        children.push(createHeading(options.heading1, 1));
+      }
+      if (options.heading2) {
+        children.push(createHeading(options.heading2, 2));
+      }
+      if (options.heading3) {
+        children.push(createHeading(options.heading3, 3));
+      }
+      if (options.bullet) {
+        for (const text of options.bullet) {
+          children.push(createBullet(text));
         }
-        if (options.heading1) {
-          children.push(createHeading(options.heading1, 1));
+      }
+      if (options.numbered) {
+        for (const text of options.numbered) {
+          children.push(createNumbered(text));
         }
-        if (options.heading2) {
-          children.push(createHeading(options.heading2, 2));
+      }
+      if (options.todo) {
+        for (const text of options.todo) {
+          children.push(createTodo(text));
         }
-        if (options.heading3) {
-          children.push(createHeading(options.heading3, 3));
-        }
-        if (options.bullet) {
-          for (const text of options.bullet) {
-            children.push(createBullet(text));
-          }
-        }
-        if (options.numbered) {
-          for (const text of options.numbered) {
-            children.push(createNumbered(text));
-          }
-        }
-        if (options.todo) {
-          for (const text of options.todo) {
-            children.push(createTodo(text));
-          }
-        }
-        if (options.code) {
-          children.push(createCode(options.code, options.codeLang));
-        }
-        if (options.quote) {
-          children.push(createQuote(options.quote));
-        }
-        if (options.divider) {
-          children.push({ object: 'block', type: 'divider', divider: {} });
-        }
-        if (options.callout) {
-          children.push(createCallout(options.callout));
-        }
+      }
+      if (options.code) {
+        children.push(createCode(options.code, options.codeLang));
+      }
+      if (options.quote) {
+        children.push(createQuote(options.quote));
+      }
+      if (options.divider) {
+        children.push({ object: 'block', type: 'divider', divider: {} });
+      }
+      if (options.callout) {
+        children.push(createCallout(options.callout));
+      }
 
-        if (children.length === 0) {
-          console.error('Error: No content specified. Use --text, --heading1, --bullet, etc.');
-          process.exit(1);
-        }
-
-        const body: Record<string, unknown> = { children };
-        if (options.after) {
-          body.after = options.after;
-        }
-
-        const result = await client.patch(`blocks/${blockId}/children`, body);
-
-        if (options.json) {
-          console.log(formatOutput(result));
-        } else {
-          console.log(`✅ Added ${children.length} block(s)`);
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
+      if (children.length === 0) {
+        console.error('Error: No content specified. Use --text, --heading1, --bullet, etc.');
         process.exit(1);
       }
-    });
+
+      const body: Record<string, unknown> = { children };
+      if (options.after) {
+        body.after = options.after;
+      }
+
+      const result = await client.patch(`blocks/${blockId}/children`, body);
+
+      if (options.json) {
+        console.log(formatOutput(result));
+      } else {
+        console.log(`✅ Added ${children.length} block(s)`);
+      }
+    }));
 
   // Update block
   blocks
@@ -166,53 +146,43 @@ export function registerBlocksCommand(program: Command): void {
     .option('-t, --text <text>', 'New text content')
     .option('--archive', 'Archive the block')
     .option('-j, --json', 'Output raw JSON')
-    .action(async (blockId: string, options) => {
-      try {
-        const client = getClient();
-        
-        // First, get the block to know its type
-        const existing = await client.get(`blocks/${blockId}`) as { type: string };
-        const blockType = existing.type;
+    .action(withErrorHandler(async (blockId: string, options) => {
+      const client = getClient();
 
-        const body: Record<string, unknown> = {};
+      // First, get the block to know its type
+      const existing = await client.get(`blocks/${blockId}`) as { type: string };
+      const blockType = existing.type;
 
-        if (options.text) {
-          body[blockType] = {
-            rich_text: [{ type: 'text', text: { content: options.text } }],
-          };
-        }
+      const body: Record<string, unknown> = {};
 
-        if (options.archive) {
-          body.archived = true;
-        }
-
-        const result = await client.patch(`blocks/${blockId}`, body);
-
-        if (options.json) {
-          console.log(formatOutput(result));
-        } else {
-          console.log('✅ Block updated');
-        }
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
+      if (options.text) {
+        body[blockType] = {
+          rich_text: [{ type: 'text', text: { content: options.text } }],
+        };
       }
-    });
+
+      if (options.archive) {
+        body.archived = true;
+      }
+
+      const result = await client.patch(`blocks/${blockId}`, body);
+
+      if (options.json) {
+        console.log(formatOutput(result));
+      } else {
+        console.log('✅ Block updated');
+      }
+    }));
 
   // Delete block
   blocks
     .command('delete <block_id>')
     .description('Delete (archive) a block')
-    .action(async (blockId: string) => {
-      try {
-        const client = getClient();
-        await client.delete(`blocks/${blockId}`);
-        console.log('✅ Block deleted');
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    .action(withErrorHandler(async (blockId: string) => {
+      const client = getClient();
+      await client.delete(`blocks/${blockId}`);
+      console.log('✅ Block deleted');
+    }));
 }
 
 // Block creation helpers — uses parseInlineMarkdown so that

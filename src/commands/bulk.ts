@@ -6,7 +6,9 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { parseFilter, parseProperties } from '../utils/format.js';
 import { getPageTitle } from '../utils/notion-helpers.js';
-import type { Page, Database, PropertySchema } from '../types/notion.js';
+import { getDatabaseSchema, queryDatabase } from '../utils/database-resolver.js';
+import { withErrorHandler } from '../utils/command-handler.js';
+import type { Page, Database, PropertySchema, PaginatedResponse } from '../types/notion.js';
 
 // Parse simple where clause: "Status=Done,Priority=High"
 function parseWhereClause(
@@ -100,29 +102,28 @@ export function registerBulkCommand(program: Command): void {
     .option('--dry-run', 'Show what would be updated without making changes')
     .option('--limit <number>', 'Max entries to update', '100')
     .option('--yes', 'Skip confirmation')
-    .action(async (databaseId: string, options) => {
-      try {
-        const client = getClient();
-        
-        // Get database schema
-        const db = await client.get(`databases/${databaseId}`) as Database;
-        
-        // Parse where clause
-        const filter = parseWhereClause(options.where, db.properties);
-        
-        if (!filter) {
-          console.error('Error: Invalid --where clause');
-          process.exit(1);
-        }
-        
-        // Parse set clause
-        const setProperties = parseProperties(options.set.split(',').map((s: string) => s.trim()));
-        
-        // Query matching entries
-        const result = await client.post(`databases/${databaseId}/query`, {
-          filter,
-          page_size: parseInt(options.limit, 10),
-        }) as { results: Page[]; has_more: boolean };
+    .action(withErrorHandler(async (databaseId: string, options) => {
+      const client = getClient();
+
+      // Get database schema
+      const db = await getDatabaseSchema(client, databaseId);
+
+      // Parse where clause
+      const filter = parseWhereClause(options.where, db.properties);
+
+      if (!filter) {
+        console.error('Error: Invalid --where clause');
+        process.exit(1);
+      }
+
+      // Parse set clause
+      const setProperties = parseProperties(options.set.split(',').map((s: string) => s.trim()));
+
+      // Query matching entries
+      const result = await queryDatabase<PaginatedResponse<Page>>(client, databaseId, {
+        filter,
+        page_size: parseInt(options.limit, 10),
+      });
         
         if (result.results.length === 0) {
           console.log('No entries match the condition.');
@@ -173,11 +174,7 @@ export function registerBulkCommand(program: Command): void {
         }
         
         console.log(`\n\n✅ Updated ${updated} entries${failed > 0 ? `, ${failed} failed` : ''}`);
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 
   // Bulk archive
   bulk
@@ -187,26 +184,25 @@ export function registerBulkCommand(program: Command): void {
     .option('--dry-run', 'Show what would be archived without making changes')
     .option('--limit <number>', 'Max entries to archive', '100')
     .option('--yes', 'Skip confirmation')
-    .action(async (databaseId: string, options) => {
-      try {
-        const client = getClient();
-        
-        // Get database schema
-        const db = await client.get(`databases/${databaseId}`) as Database;
-        
-        // Parse where clause
-        const filter = parseWhereClause(options.where, db.properties);
-        
-        if (!filter) {
-          console.error('Error: Invalid --where clause');
-          process.exit(1);
-        }
-        
-        // Query matching entries
-        const result = await client.post(`databases/${databaseId}/query`, {
-          filter,
-          page_size: parseInt(options.limit, 10),
-        }) as { results: Page[]; has_more: boolean };
+    .action(withErrorHandler(async (databaseId: string, options) => {
+      const client = getClient();
+
+      // Get database schema
+      const db = await getDatabaseSchema(client, databaseId);
+
+      // Parse where clause
+      const filter = parseWhereClause(options.where, db.properties);
+
+      if (!filter) {
+        console.error('Error: Invalid --where clause');
+        process.exit(1);
+      }
+
+      // Query matching entries
+      const result = await queryDatabase<PaginatedResponse<Page>>(client, databaseId, {
+        filter,
+        page_size: parseInt(options.limit, 10),
+      });
         
         if (result.results.length === 0) {
           console.log('No entries match the condition.');
@@ -252,11 +248,7 @@ export function registerBulkCommand(program: Command): void {
         }
         
         console.log(`\n\n✅ Archived ${archived} entries${failed > 0 ? `, ${failed} failed` : ''}`);
-      } catch (error) {
-        console.error('Error:', (error as Error).message);
-        process.exit(1);
-      }
-    });
+    }));
 
   // Bulk delete (really archive, Notion doesn't have true delete)
   bulk
