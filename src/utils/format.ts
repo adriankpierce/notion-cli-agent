@@ -127,6 +127,35 @@ function getBlockPrefix(type: string): string {
   return prefixes[type] || '?';
 }
 
+function buildTypedProperty(type: string, value: string): unknown {
+  switch (type) {
+    case 'status':
+      return { status: { name: value } };
+    case 'select':
+      return { select: { name: value } };
+    case 'multi_select':
+      return { multi_select: value.split(',').map(v => ({ name: v.trim() })) };
+    case 'rich_text':
+      return { rich_text: [{ text: { content: value } }] };
+    case 'number':
+      return { number: parseFloat(value) };
+    case 'checkbox':
+      return { checkbox: value === 'true' };
+    case 'date':
+      return { date: { start: value } };
+    case 'url':
+      return { url: value };
+    case 'email':
+      return { email: value };
+    case 'people':
+      return { people: value.split(',').map(id => ({ id: id.trim() })) };
+    case 'relation':
+      return { relation: value.split(',').map(id => ({ id: id.trim() })) };
+    default:
+      return { [type]: value };
+  }
+}
+
 export function parseProperties(props: string[]): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -134,8 +163,22 @@ export function parseProperties(props: string[]): Record<string, unknown> {
     const eqIndex = prop.indexOf('=');
     if (eqIndex === -1) continue;
 
-    const key = prop.slice(0, eqIndex);
+    let key = prop.slice(0, eqIndex);
     const value = prop.slice(eqIndex + 1);
+
+    // Support type hint syntax: "Key:type=Value"
+    let typeHint: string | undefined;
+    const colonIndex = key.indexOf(':');
+    if (colonIndex !== -1) {
+      typeHint = key.slice(colonIndex + 1);
+      key = key.slice(0, colonIndex);
+    }
+
+    // If type hint is provided, use it directly
+    if (typeHint) {
+      result[key] = buildTypedProperty(typeHint, value);
+      continue;
+    }
 
     // Try to determine property type from value format
     if (value.startsWith('[') || value.startsWith('{')) {

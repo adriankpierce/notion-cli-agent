@@ -519,6 +519,38 @@ describe('Format Utilities', () => {
       });
     });
 
+    it('should parse status property with type hint syntax', () => {
+      const props = ['Status:status=Done'];
+      const result = parseProperties(props);
+      expect(result).toEqual({
+        Status: { status: { name: 'Done' } },
+      });
+    });
+
+    it('should parse rich_text with type hint syntax', () => {
+      const props = ['Notes:rich_text=Some notes here'];
+      const result = parseProperties(props);
+      expect(result).toEqual({
+        Notes: { rich_text: [{ text: { content: 'Some notes here' } }] },
+      });
+    });
+
+    it('should parse people type hint (pass-through as relation-like)', () => {
+      const props = ['Assignee:people=user-123'];
+      const result = parseProperties(props);
+      expect(result).toEqual({
+        Assignee: { people: [{ id: 'user-123' }] },
+      });
+    });
+
+    it('should handle type hint with no colon (backwards compat)', () => {
+      const props = ['Status=In Progress'];
+      const result = parseProperties(props);
+      expect(result).toEqual({
+        Status: { select: { name: 'In Progress' } },
+      });
+    });
+
     it('should handle empty property value', () => {
       const props = ['Empty='];
       const result = parseProperties(props);
