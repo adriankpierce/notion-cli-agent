@@ -176,8 +176,7 @@ describe('Inspect Command', () => {
 
       await program.parseAsync(['node', 'test', 'inspect', 'schema', 'db-123']);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Database: Test Database'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Properties:'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Name'));
@@ -330,9 +329,8 @@ describe('Inspect Command', () => {
 
       await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         page_size: 3,
       }));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Notion Database Context'));
@@ -348,7 +346,7 @@ describe('Inspect Command', () => {
 
       await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123', '--examples', '5']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         page_size: 5,
       }));
     });

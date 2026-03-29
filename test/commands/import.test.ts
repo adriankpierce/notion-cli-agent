@@ -74,20 +74,28 @@ console.log("code");
 \`\`\`
 `;
 
-    it('should import markdown file to page', async () => {
+    const markdownBody = markdownContent.replace(/^---\n[\s\S]*?\n---\n/, '');
+
+    const mockMarkdownResponse = {
+      object: 'page_markdown',
+      id: 'page-123',
+      markdown: '',
+      truncated: false,
+      unknown_block_ids: [],
+    };
+
+    it('should import markdown file to page (replace_content)', async () => {
       mockFS.set('/tmp/test.md', markdownContent);
-      mockClient.patch.mockResolvedValue({ results: [] });
+      mockClient.patch.mockResolvedValue(mockMarkdownResponse);
 
       await program.parseAsync(['node', 'test', 'import', 'markdown', '/tmp/test.md', '--to', 'page-123']);
 
-      expect(mockClient.patch).toHaveBeenCalledWith('blocks/page-123/children', {
-        children: expect.arrayContaining([
-          expect.objectContaining({ type: 'heading_1' }),
-          expect.objectContaining({ type: 'paragraph' }),
-          expect.objectContaining({ type: 'heading_2' }),
-          expect.objectContaining({ type: 'bulleted_list_item' }),
-          expect.objectContaining({ type: 'code' }),
-        ]),
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123/markdown', {
+        type: 'replace_content',
+        replace_content: {
+          new_str: expect.stringContaining('# Test Document'),
+          allow_deleting_content: false,
+        },
       });
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Imported'));
     });
@@ -101,34 +109,20 @@ console.log("code");
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Dry run'));
     });
 
-    it('should replace existing content with --replace flag', async () => {
-      mockFS.set('/tmp/test.md', markdownContent);
-      mockClient.get.mockResolvedValue({
-        results: [{ id: 'block-1' }, { id: 'block-2' }],
-      });
-      mockClient.delete.mockResolvedValue({});
-      mockClient.patch.mockResolvedValue({ results: [] });
-
-      await program.parseAsync(['node', 'test', 'import', 'markdown', '/tmp/test.md', '--to', 'page-123', '--replace']);
-
-      expect(mockClient.get).toHaveBeenCalledWith('blocks/page-123/children');
-      expect(mockClient.delete).toHaveBeenCalledWith('blocks/block-1');
-      expect(mockClient.delete).toHaveBeenCalledWith('blocks/block-2');
-      expect(mockClient.patch).toHaveBeenCalled();
-    });
-
-    it('should chunk large imports into batches of 100', async () => {
-      // Create markdown with 250 items (will need 3 chunks)
+    it('should handle large markdown in a single API call', async () => {
       const largeMarkdown = '- Item\n'.repeat(250);
       mockFS.set('/tmp/large.md', largeMarkdown);
-      mockClient.patch.mockResolvedValue({ results: [] });
+      mockClient.patch.mockResolvedValue(mockMarkdownResponse);
 
       await program.parseAsync(['node', 'test', 'import', 'markdown', '/tmp/large.md', '--to', 'page-123']);
 
-      // Should have 3 patch calls (100 + 100 + 50)
-      expect(mockClient.patch).toHaveBeenCalledTimes(3);
-      expect(mockClient.patch).toHaveBeenNthCalledWith(1, 'blocks/page-123/children', {
-        children: expect.arrayContaining([expect.objectContaining({ type: 'bulleted_list_item' })]),
+      expect(mockClient.patch).toHaveBeenCalledTimes(1);
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123/markdown', {
+        type: 'replace_content',
+        replace_content: {
+          new_str: largeMarkdown,
+          allow_deleting_content: false,
+        },
       });
     });
 
@@ -156,8 +150,7 @@ Task 3,Todo,Low,2026-03-01`;
 
       await program.parseAsync(['node', 'test', 'import', 'csv', '/tmp/data.csv', '--to', 'db-123']);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(mockClient.post).toHaveBeenCalledTimes(3); // 3 rows
       expect(mockClient.post).toHaveBeenCalledWith('pages', expect.objectContaining({
         parent: { database_id: 'db-123' },
@@ -245,8 +238,8 @@ Task 3,Todo,Low,2026-03-01`;
   });
 
   describe('import obsidian', () => {
-    it('should chunk content blocks beyond 100 when importing with --content', async () => {
-      // Generate a markdown file with >100 blocks (each line = 1 paragraph block)
+    it('should send full content via native markdown API when importing with --content', async () => {
+      // Generate a markdown file with lots of content
       const lines = Array.from({ length: 150 }, (_, i) => `Paragraph ${i + 1}`);
       const bigNote = `---\ntitle: "Big Note"\n---\n\n${lines.join('\n\n')}`;
 
@@ -275,29 +268,23 @@ Task 3,Todo,Low,2026-03-01`;
       // Set up database resolution
       setupDatabaseResolution(mockClient);
 
-      // Page creation returns an id for subsequent block appends
+      // Page creation returns an id
       mockClient.post.mockResolvedValue({ id: 'new-page-123' });
-      mockClient.patch.mockResolvedValue({ results: [] });
 
       await program.parseAsync(['node', 'test', 'import', 'obsidian', '/vault', '--to', 'db-123', '--content']);
 
-      // First 100 blocks go in the create call as children
+      // All content goes in the create call as markdown param (no chunking needed)
       const createCall = mockClient.post.mock.calls.find(
         (c: any[]) => c[0] === 'pages'
       );
       expect(createCall).toBeDefined();
-      expect(createCall[1].children.length).toBe(100);
-
-      // Remaining blocks go via patch (append)
-      const appendCalls = mockClient.patch.mock.calls.filter(
-        (c: any[]) => c[0] === 'blocks/new-page-123/children'
-      );
-      expect(appendCalls.length).toBeGreaterThanOrEqual(1);
-      // Total appended blocks should be 50 (150 - 100)
-      const appendedCount = appendCalls.reduce(
-        (sum: number, c: any[]) => sum + c[1].children.length, 0
-      );
-      expect(appendedCount).toBe(50);
+      expect(createCall[1].markdown).toBeDefined();
+      expect(createCall[1].markdown).toContain('Paragraph 1');
+      expect(createCall[1].markdown).toContain('Paragraph 150');
+      // No children property — using markdown instead
+      expect(createCall[1].children).toBeUndefined();
+      // No follow-up patch calls needed
+      expect(mockClient.patch).not.toHaveBeenCalled();
     });
 
     it('should not warn about title in frontmatter', async () => {
@@ -337,6 +324,7 @@ Task 3,Todo,Low,2026-03-01`;
   describe('Error handling', () => {
     it('should handle markdown import API errors', async () => {
       mockFS.set('/tmp/test.md', '# Test');
+      // Default mode is append (insert_content), only one patch call
       mockClient.patch.mockRejectedValue(new Error('API error'));
 
       await expect(

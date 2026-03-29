@@ -97,6 +97,16 @@ export interface NotionBlock {
   [key: string]: unknown;
 }
 
+// ─── Native Markdown API ────────────────────────────────────────────────────
+
+export interface PageMarkdownResponse {
+  object: 'page_markdown';
+  id: string;
+  markdown: string;
+  truncated: boolean;
+  unknown_block_ids: string[];
+}
+
 // ─── Pagination ──────────────────────────────────────────────────────────────
 
 export interface PaginatedResponse<T> {

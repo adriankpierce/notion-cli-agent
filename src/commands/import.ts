@@ -5,8 +5,8 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { markdownToBlocks } from '../utils/markdown.js';
 import { getDatabaseSchema } from '../utils/database-resolver.js';
+import { writePageMarkdown } from '../utils/notion-helpers.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Database, PropertySchema } from '../types/notion.js';
 
@@ -308,22 +308,13 @@ export function registerImportCommand(program: Command): void {
               parent: { database_id: options.to },
               properties,
             };
-            
-            // Add content if requested — chunk at 100 blocks (Notion API limit per request)
-            const contentBlocks = (options.content && body.trim()) ? markdownToBlocks(body) : [];
 
-            // First 100 blocks can be included in the create request
-            if (contentBlocks.length > 0) {
-              pageData.children = contentBlocks.slice(0, 100);
+            // Add content via native markdown API (single request, no chunking needed)
+            if (options.content && body.trim()) {
+              pageData.markdown = body;
             }
 
-            const createdPage = await client.post('pages', pageData) as { id: string };
-
-            // Append remaining blocks in chunks of 100
-            for (let i = 100; i < contentBlocks.length; i += 100) {
-              const chunk = contentBlocks.slice(i, i + 100);
-              await client.patch(`blocks/${createdPage.id}/children`, { children: chunk });
-            }
+            await client.post('pages', pageData);
             imported++;
             process.stdout.write(`\r📥 Imported ${imported}/${files.length}...`);
           } catch (error) {
@@ -468,12 +459,11 @@ export function registerImportCommand(program: Command): void {
         console.log(`\n\n✅ Imported ${imported} rows${failed > 0 ? `, ${failed} failed` : ''}`);
     }));
 
-  // Import single markdown file to page
+  // Import single markdown file to page (replaces existing content)
   importCmd
     .command('markdown <file_path>')
-    .description('Import a markdown file as page content')
-    .requiredOption('--to <page_id>', 'Target page ID (appends content)')
-    .option('--replace', 'Replace existing content (deletes all blocks first)')
+    .description('Import a markdown file as page content (replaces existing content)')
+    .requiredOption('--to <page_id>', 'Target page ID')
     .option('--dry-run', 'Show what would be imported')
     .action(withErrorHandler(async (filePath: string, options) => {
         const client = getClient();
@@ -481,52 +471,24 @@ export function registerImportCommand(program: Command): void {
         // Read file
         const content = fs.readFileSync(filePath, 'utf-8');
         const { body } = parseFrontMatter(content);
-        
-        // Convert to blocks
-        const blocks = markdownToBlocks(body);
-        
-        console.log(`Parsed ${blocks.length} blocks from ${path.basename(filePath)}`);
-        
+
+        const lines = body.split('\n');
+        console.log(`Read ${body.length} chars (${lines.length} lines) from ${path.basename(filePath)}`);
+
         if (options.dryRun) {
-          console.log('\nBlocks to create:');
-          blocks.slice(0, 10).forEach((block, i) => {
-            const type = block.type as string;
-            console.log(`  ${i + 1}. ${type}`);
+          console.log('\nContent preview:');
+          lines.slice(0, 10).forEach((line, i) => {
+            console.log(`  ${i + 1}. ${line.slice(0, 80)}${line.length > 80 ? '...' : ''}`);
           });
-          if (blocks.length > 10) {
-            console.log(`  ... and ${blocks.length - 10} more`);
+          if (lines.length > 10) {
+            console.log(`  ... and ${lines.length - 10} more lines`);
           }
           console.log('\n🔍 Dry run - no changes made');
           return;
         }
-        
-        // Delete existing blocks if replace mode
-        if (options.replace) {
-          console.log('Removing existing content...');
-          const existing = await client.get(`blocks/${options.to}/children`) as {
-            results: { id: string }[];
-          };
-          
-          for (const block of existing.results) {
-            await client.delete(`blocks/${block.id}`);
-          }
-        }
-        
-        // Append blocks (Notion has a limit of 100 per request)
-        const chunks = [];
-        for (let i = 0; i < blocks.length; i += 100) {
-          chunks.push(blocks.slice(i, i + 100));
-        }
-        
-        let added = 0;
-        for (const chunk of chunks) {
-          await client.patch(`blocks/${options.to}/children`, {
-            children: chunk,
-          });
-          added += chunk.length;
-          process.stdout.write(`\r📥 Added ${added}/${blocks.length} blocks...`);
-        }
-        
-        console.log(`\n\n✅ Imported ${blocks.length} blocks to page`);
+
+        await writePageMarkdown(client, options.to, body);
+
+        console.log(`\n✅ Imported ${body.length} chars to page`);
     }));
 }

@@ -55,9 +55,8 @@ describe('Backup Command', () => {
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup']);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         page_size: 100,
         sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
       }));
@@ -137,7 +136,7 @@ describe('Backup Command', () => {
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup']);
 
       expect(mockClient.post).toHaveBeenCalledTimes(2);
-      expect(mockClient.post).toHaveBeenNthCalledWith(2, 'data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenNthCalledWith(2, 'data_sources/db-123/query', expect.objectContaining({
         start_cursor: 'cursor-123',
       }));
 
@@ -231,7 +230,14 @@ describe('Backup Command', () => {
 
     it('should include content in markdown format', async () => {
       setupDatabaseResolution(mockClient);
-      mockClient.get.mockResolvedValue(mockBlocks);
+      // For markdown format, backup uses native markdown API
+      mockClient.get.mockResolvedValue({
+        object: 'page_markdown',
+        id: 'page-123',
+        markdown: '# Title\n\nContent from native API\n',
+        truncated: false,
+        unknown_block_ids: [],
+      });
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--content', '--format', 'markdown']);
@@ -239,7 +245,7 @@ describe('Backup Command', () => {
       const mdFiles = Array.from(mockFS.keys()).filter(k => k.startsWith('/backup/pages/') && k.endsWith('.md'));
       const mdContent = mockFS.get(mdFiles[0]) || '';
       expect(mdContent).toContain('# Title');
-      expect(mdContent).toContain('Content');
+      expect(mdContent).toContain('Content from native API');
     });
   });
 
@@ -263,7 +269,7 @@ describe('Backup Command', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Incremental backup since'));
 
       // Should query with last_edited_time filter
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: {
           timestamp: 'last_edited_time',
           last_edited_time: { after: '2026-01-15T00:00:00.000Z' },
@@ -278,10 +284,10 @@ describe('Backup Command', () => {
       await program.parseAsync(['node', 'test', 'backup', 'db-123', '--output', '/backup', '--incremental']);
 
       // Should not have filter in query
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         page_size: 100,
       }));
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.not.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.not.objectContaining({
         filter: expect.anything(),
       }));
     });

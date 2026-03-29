@@ -5,8 +5,7 @@ import { Command } from 'commander';
 import * as fs from 'fs';
 import { getClient } from '../client.js';
 import { formatOutput, formatPageTitle, parseProperties } from '../utils/format.js';
-import { markdownToBlocks } from '../utils/markdown.js';
-import { blocksToMarkdownAsync, fetchAllBlocks, getPageTitle, isParentDatabase, getParentDatabaseId, resolvePropertyName, buildClearPayload, buildTrashPayload, buildBlockPosition } from '../utils/notion-helpers.js';
+import { readPageMarkdown, updatePageMarkdown, fetchAllBlocks, getPageTitle, isParentDatabase, getParentDatabaseId, resolvePropertyName, buildClearPayload, buildTrashPayload } from '../utils/notion-helpers.js';
 import { getDatabaseSchema } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Page } from '../types/notion.js';
@@ -51,13 +50,13 @@ export function registerPagesCommand(program: Command): void {
   // Create page
   pages
     .command('create')
-    .description('Create a new page')
+    .description('Create a new page with optional markdown content (from file or stdin)')
     .requiredOption('--parent <id>', 'Parent page ID or database ID')
     .option('--parent-type <type>', 'Parent type: page, database', 'database')
-    .option('-t, --title <title>', 'Page title')
+    .option('-t, --title <title>', 'Page title (or use # h1 in markdown)')
     .option('--title-prop <name>', 'Name of title property (auto-detected if not set)')
     .option('-p, --prop <key=value...>', 'Set property (can be used multiple times)')
-    .option('-c, --content <text>', 'Initial page content (paragraph)')
+    .option('-f, --file <path>', 'Markdown content from file')
     .option('--icon <emoji>', 'Set page icon (emoji character, e.g. 📝)')
     .option('-j, --json', 'Output raw JSON')
     .action(withErrorHandler(async (options) => {
@@ -68,11 +67,11 @@ export function registerPagesCommand(program: Command): void {
           : { database_id: options.parent };
 
         const properties: Record<string, unknown> = {};
-        
+
         // Handle title - auto-detect title property name from database schema
         if (options.title) {
           let titlePropName = options.titleProp;
-          
+
           // If not specified and parent is database, fetch schema to find title property
           if (!titlePropName && options.parentType === 'database') {
             try {
@@ -90,7 +89,7 @@ export function registerPagesCommand(program: Command): void {
               // Fall back to common defaults
             }
           }
-          
+
           // Use detected name or fall back based on parent type
           // Non-DB pages (page/workspace parent) use 'title'; DB pages default to 'Name'
           titlePropName = titlePropName || (options.parentType === 'page' ? 'title' : 'Name');
@@ -111,15 +110,13 @@ export function registerPagesCommand(program: Command): void {
           body.icon = { type: 'emoji', emoji: options.icon };
         }
 
-        // Add initial content if provided
-        if (options.content) {
-          body.children = [{
-            object: 'block',
-            type: 'paragraph',
-            paragraph: {
-              rich_text: [{ type: 'text', text: { content: options.content } }],
-            },
-          }];
+        // Read markdown content from file or stdin
+        if (options.file) {
+          if (!fs.existsSync(options.file)) {
+            console.error(`Error: File not found: ${options.file}`);
+            process.exit(1);
+          }
+          body.markdown = fs.readFileSync(options.file, 'utf-8');
         }
 
         const page = await client.post('pages', body);
@@ -289,9 +286,15 @@ export function registerPagesCommand(program: Command): void {
         output += `# ${title}\n\n`;
       }
 
-      // Convert blocks to markdown
-      const content = await blocksToMarkdownAsync(client, pageId);
-      output += content;
+      // Read content via native markdown API
+      const response = await readPageMarkdown(client, pageId);
+      if (response.truncated) {
+        console.error('Warning: Page content was truncated (very large page)');
+      }
+      if (response.unknown_block_ids.length > 0) {
+        console.error(`Note: ${response.unknown_block_ids.length} block(s) could not be represented as markdown`);
+      }
+      output += response.markdown;
 
       if (options.output) {
         fs.writeFileSync(options.output, output);
@@ -301,251 +304,48 @@ export function registerPagesCommand(program: Command): void {
       }
     }));
 
-  // Write Markdown content to a page
-  pages
-    .command('write <page_id>')
-    .description('Write Markdown content to a page (from file or stdin)')
-    .option('-f, --file <path>', 'Read Markdown from file')
-    .option('--replace', 'Replace existing content (deletes all blocks first). Default is append')
-    .option('--dry-run', 'Show what would be written without making changes')
-    .action(withErrorHandler(async (pageId: string, options) => {
-      const client = getClient();
-
-      // Read markdown from file or stdin
-      let markdown: string;
-        if (options.file) {
-          if (!fs.existsSync(options.file)) {
-            console.error(`Error: File not found: ${options.file}`);
-            process.exit(1);
-          }
-          markdown = fs.readFileSync(options.file, 'utf-8');
-        } else {
-          // Read from stdin
-          markdown = await readStdin();
-        }
-
-        if (!markdown.trim()) {
-          console.error('Error: No content provided. Use --file or pipe content via stdin.');
-          process.exit(1);
-        }
-
-        // Convert to blocks
-        const blocks = markdownToBlocks(markdown);
-
-        if (options.dryRun) {
-          console.log(`Parsed ${blocks.length} blocks:`);
-          blocks.slice(0, 15).forEach((block, i) => {
-            console.log(`  ${i + 1}. ${block.type}`);
-          });
-          if (blocks.length > 15) {
-            console.log(`  ... and ${blocks.length - 15} more`);
-          }
-          console.log('\nDry run - no changes made');
-          return;
-        }
-
-        // Delete existing blocks if --replace
-        if (options.replace) {
-          const existing = await fetchAllBlocks(client, pageId);
-          if (existing.length > 0) {
-            console.error(
-              `Warning: --replace will permanently delete ${existing.length} existing block(s). ` +
-              `This operation is not atomic — if the subsequent write fails, deleted content cannot be recovered automatically.`
-            );
-            // Keep a reference for error recovery attempt
-            const backup = existing.map(b => b.id);
-            try {
-              for (const block of existing) {
-                await client.delete(`blocks/${block.id}`);
-              }
-              console.error(`Removed ${existing.length} existing blocks`);
-            } catch (deleteError) {
-              console.error(`Error during block deletion: ${(deleteError as Error).message}`);
-              console.error(`Partial deletion may have occurred. Block IDs that were targeted:\n${backup.join('\n')}`);
-              process.exit(1);
-            }
-          }
-        }
-
-        // Append blocks in chunks of 100 (Notion API limit)
-        let added = 0;
-        try {
-          for (let i = 0; i < blocks.length; i += 100) {
-            const chunk = blocks.slice(i, i + 100);
-            await client.patch(`blocks/${pageId}/children`, {
-              children: chunk,
-            });
-            added += chunk.length;
-          }
-        } catch (writeError) {
-          console.error(`Error writing blocks (written so far: ${added}/${blocks.length}): ${(writeError as Error).message}`);
-          process.exit(1);
-        }
-
-        console.error(`Written ${added} blocks to page`);
-    }));
-
-  // Surgical page editing
+  // Edit page content via Notion's update_content (search-and-replace)
   pages
     .command('edit <page_id>')
-    .description('Surgical block-level editing: delete, insert, or replace blocks at a position')
-    .option('--after <block_id>', 'Position: insert after this block ID')
-    .option('--at <index>', 'Position: operate at this block index (0-based)')
-    .option('--delete <count>', 'Delete <count> blocks starting at position', parseInt)
-    .option('-f, --file <path>', 'Read replacement Markdown from file')
-    .option('-m, --markdown <text>', 'Replacement Markdown text (inline)')
+    .description('Edit page content using search-and-replace on the markdown. Uses Notion\'s update_content API.')
+    .requiredOption('-s, --search <text>', 'Text to find in the page markdown (exact, case-sensitive)')
+    .requiredOption('-r, --replace <text>', 'Replacement text')
+    .option('--all', 'Replace all matches (default: must match exactly once)')
+    .option('--allow-deleting-content', 'Allow deletion of child pages/databases')
     .option('--dry-run', 'Show what would change without making changes')
-    .option('-j, --json', 'Output raw JSON')
+    .option('-j, --json', 'Output raw JSON response')
     .action(withErrorHandler(async (pageId: string, options) => {
       const client = getClient();
 
-        // Fetch all current blocks
-        const allBlocks = await fetchAllBlocks(client, pageId);
-
-        // Resolve position
-        let afterBlockId: string | undefined;
-        let deleteStartIndex: number;
-
-        if (options.after) {
-          // Find the block index for --after
-          const idx = allBlocks.findIndex(b => b.id === options.after || b.id.replace(/-/g, '') === options.after.replace(/-/g, ''));
-          if (idx === -1) {
-            console.error(`Error: Block not found: ${options.after}`);
-            console.error(`Available blocks (${allBlocks.length}):`);
-            allBlocks.slice(0, 10).forEach((b, i) => {
-              console.error(`  ${i}: ${b.id} (${b.type})`);
-            });
-            process.exit(1);
-          }
-          afterBlockId = allBlocks[idx].id;
-          deleteStartIndex = idx + 1;
-        } else if (options.at !== undefined) {
-          const atIndex = parseInt(options.at, 10);
-          if (atIndex < 0 || atIndex > allBlocks.length) {
-            console.error(`Error: Index ${atIndex} out of range (0-${allBlocks.length})`);
-            process.exit(1);
-          }
-          if (atIndex > 0) {
-            afterBlockId = allBlocks[atIndex - 1].id;
-          }
-          deleteStartIndex = atIndex;
-        } else {
-          console.error('Error: Specify a position with --after <block_id> or --at <index>');
-          process.exit(1);
-          return;
-        }
-
-        // Determine blocks to delete
-        const deleteCount = options.delete || 0;
-        const blocksToDelete = allBlocks.slice(deleteStartIndex, deleteStartIndex + deleteCount);
-
-        // Parse replacement content
-        let newBlocks: { object: string; type: string; [key: string]: unknown }[] = [];
-        if (options.file) {
-          if (!fs.existsSync(options.file)) {
-            console.error(`Error: File not found: ${options.file}`);
-            process.exit(1);
-          }
-          const md = fs.readFileSync(options.file, 'utf-8');
-          newBlocks = markdownToBlocks(md);
-        } else if (options.markdown) {
-          newBlocks = markdownToBlocks(options.markdown);
-        }
-
-        // Dry run
         if (options.dryRun) {
-          console.log('Edit plan:');
-          if (blocksToDelete.length > 0) {
-            console.log(`  Delete ${blocksToDelete.length} block(s):`);
-            blocksToDelete.forEach((b, i) => {
-              console.log(`    ${deleteStartIndex + i}: ${b.id} (${b.type})`);
-            });
-          }
-          if (newBlocks.length > 0) {
-            console.log(`  Insert ${newBlocks.length} block(s)${afterBlockId ? ` after ${afterBlockId}` : ' at start'}:`);
-            newBlocks.slice(0, 10).forEach((b, i) => {
-              console.log(`    ${i}: ${b.type}`);
-            });
-            if (newBlocks.length > 10) {
-              console.log(`    ... and ${newBlocks.length - 10} more`);
+          // Read current content to show what would match
+          const current = await readPageMarkdown(client, pageId);
+          const matches = current.markdown.split(options.search).length - 1;
+          console.log(`Found ${matches} match(es) for search text`);
+          if (matches > 0) {
+            console.log(`  Search:  "${options.search.slice(0, 80)}${options.search.length > 80 ? '...' : ''}"`);
+            console.log(`  Replace: "${options.replace.slice(0, 80)}${options.replace.length > 80 ? '...' : ''}"`);
+            if (matches > 1 && !options.all) {
+              console.log(`  ⚠️  Multiple matches found — use --all to replace all, or be more specific`);
             }
-          }
-          if (blocksToDelete.length === 0 && newBlocks.length === 0) {
-            console.log('  No changes to make');
           }
           console.log('\nDry run - no changes made');
           return;
         }
 
-        // Nothing to do — warn and exit
-        if (blocksToDelete.length === 0 && newBlocks.length === 0) {
-          console.error('Warning: nothing to do — specify --delete and/or --file/--markdown');
-          return;
-        }
-
-        // Execute: delete blocks (not atomic — partial failure leaves page in intermediate state)
-        if (blocksToDelete.length > 0) {
-          console.error(
-            `Deleting ${blocksToDelete.length} block(s)... ` +
-            `(note: not atomic — partial failure will leave the page in an intermediate state)`
-          );
-        }
-        for (const block of blocksToDelete) {
-          await client.delete(`blocks/${block.id}`);
-        }
-
-        // Execute: insert new blocks
-        if (newBlocks.length > 0) {
-          // Insert in chunks of 100
-          for (let i = 0; i < newBlocks.length; i += 100) {
-            const chunk = newBlocks.slice(i, i + 100);
-            const body: Record<string, unknown> = {
-              children: chunk,
-              ...buildBlockPosition(afterBlockId),
-            };
-            const result = await client.patch(`blocks/${pageId}/children`, body) as {
-              results: { id: string }[];
-            };
-            // Update afterBlockId to the last inserted block for the next chunk
-            if (result.results && result.results.length > 0) {
-              afterBlockId = result.results[result.results.length - 1].id;
-            }
-          }
-        }
-
-        const summary = [];
-        if (blocksToDelete.length > 0) summary.push(`deleted ${blocksToDelete.length}`);
-        if (newBlocks.length > 0) summary.push(`inserted ${newBlocks.length}`);
+        const response = await updatePageMarkdown(client, pageId, [{
+          old_str: options.search,
+          new_str: options.replace,
+          replace_all_matches: options.all ?? false,
+        }], {
+          allowDeletingContent: options.allowDeletingContent ?? false,
+        });
 
         if (options.json) {
-          console.log(formatOutput({
-            deleted: blocksToDelete.length,
-            inserted: newBlocks.length,
-            deleted_ids: blocksToDelete.map(b => b.id),
-          }));
+          console.log(formatOutput(response));
         } else {
-          console.log(`Done: ${summary.join(', ')} block(s)`);
+          console.log('✅ Page updated');
         }
     }));
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Read all data from stdin. Returns empty string if stdin is a TTY (no pipe).
- */
-function readStdin(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    // If stdin is a TTY (no pipe), return empty immediately
-    if (process.stdin.isTTY) {
-      resolve('');
-      return;
-    }
-
-    let data = '';
-    process.stdin.setEncoding('utf-8');
-    process.stdin.on('data', (chunk) => { data += chunk; });
-    process.stdin.on('end', () => resolve(data));
-    process.stdin.on('error', reject);
-  });
-}

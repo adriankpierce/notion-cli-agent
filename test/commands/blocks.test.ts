@@ -120,7 +120,7 @@ describe('Blocks Command', () => {
           object: 'block',
           type: 'paragraph',
           paragraph: {
-            rich_text: [{ type: 'text', text: { content: 'New paragraph', link: null } }],
+            rich_text: [{ type: 'text', text: { content: 'New paragraph', } }],
           },
         }],
       });
@@ -216,7 +216,7 @@ describe('Blocks Command', () => {
           object: 'block',
           type: 'code',
           code: {
-            rich_text: [{ type: 'text', text: { content: 'console.log("hello")', link: null } }],
+            rich_text: [{ type: 'text', text: { content: 'console.log("hello")', } }],
             language: 'javascript',
           },
         }],
@@ -237,7 +237,7 @@ describe('Blocks Command', () => {
           object: 'block',
           type: 'quote',
           quote: {
-            rich_text: [{ type: 'text', text: { content: 'A famous quote', link: null } }],
+            rich_text: [{ type: 'text', text: { content: 'A famous quote', } }],
           },
         }],
       });
@@ -275,7 +275,7 @@ describe('Blocks Command', () => {
           object: 'block',
           type: 'callout',
           callout: {
-            rich_text: [{ type: 'text', text: { content: 'Important note', link: null } }],
+            rich_text: [{ type: 'text', text: { content: 'Important note', } }],
             icon: { type: 'emoji', emoji: '💡' },
           },
         }],

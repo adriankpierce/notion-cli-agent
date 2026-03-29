@@ -36,7 +36,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Status',
         }),
@@ -50,7 +50,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'in progress', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.any(Object),
       }));
     });
@@ -61,7 +61,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'todo', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.any(Object),
       }));
     });
@@ -72,7 +72,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'hecho', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.any(Object),
       }));
     });
@@ -92,7 +92,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'unassigned', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Assignee',
           people: { is_empty: true },
@@ -113,7 +113,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'sin asignar', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           people: { is_empty: true },
         }),
@@ -135,7 +135,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'overdue', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Due Date',
           date: expect.objectContaining({
@@ -158,7 +158,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'today', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Due Date',
           date: expect.objectContaining({
@@ -181,7 +181,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'this week', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Due Date',
           date: { this_week: {} },
@@ -195,7 +195,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'modified today', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           timestamp: 'last_edited_time',
           last_edited_time: expect.objectContaining({
@@ -211,7 +211,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'created today', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           timestamp: 'created_time',
           created_time: expect.objectContaining({
@@ -247,7 +247,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'high priority', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Priority',
           select: { equals: 'High' },
@@ -275,7 +275,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'urgente', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.any(Object));
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.any(Object));
     });
   });
 
@@ -294,7 +294,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'todo unassigned overdue', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           and: expect.any(Array),
         }),
@@ -307,7 +307,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: expect.any(String),
         }),
@@ -368,7 +368,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123', '--limit', '50']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         page_size: 50,
       }));
     });
@@ -430,7 +430,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Task Status',
         }),
@@ -450,7 +450,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'overdue', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Deadline',
         }),
@@ -470,7 +470,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'unassigned', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Owner',
         }),
@@ -502,7 +502,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           status: { equals: 'Done' },
         }),
@@ -531,7 +531,7 @@ describe('Find Command', () => {
 
       await program.parseAsync(['node', 'test', 'find', 'in progress', '--database', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           status: { equals: 'Working On It' },
         }),

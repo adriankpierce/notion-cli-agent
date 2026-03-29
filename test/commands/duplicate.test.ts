@@ -258,8 +258,7 @@ describe('Duplicate Command', () => {
 
       await program.parseAsync(['node', 'test', 'duplicate', 'schema', 'db-123', '--to', 'page-parent']);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(mockClient.post).toHaveBeenCalledWith('databases', expect.objectContaining({
         parent: { page_id: 'page-parent' },
         title: expect.arrayContaining([
@@ -463,16 +462,16 @@ describe('Duplicate Command', () => {
       setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string, data: any) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'data_sources/ds-456/query') return { results: [mockPage], has_more: false };
+        if (path === 'data_sources/db-123/query') return { results: [mockPage], has_more: false };
         if (path === 'pages') return { id: 'new-page' };
         throw new Error('Unexpected path');
       });
 
       await program.parseAsync(['node', 'test', 'duplicate', 'database', 'db-123', '--to', 'page-parent']);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(mockClient.post).toHaveBeenCalledWith('databases', expect.any(Object));
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         page_size: 100,
       }));
       expect(mockClient.post).toHaveBeenCalledWith('pages', expect.objectContaining({
@@ -498,7 +497,7 @@ describe('Duplicate Command', () => {
       setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'data_sources/ds-456/query') return { results: manyPages, has_more: false };
+        if (path === 'data_sources/db-123/query') return { results: manyPages, has_more: false };
         if (path === 'pages') return { id: 'new-page' };
         throw new Error('Unexpected path');
       });
@@ -515,7 +514,7 @@ describe('Duplicate Command', () => {
       mockClient.get.mockResolvedValue({ results: [mockBlock], has_more: false });
       mockClient.post.mockImplementation(async (path: string) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'data_sources/ds-456/query') return { results: [mockPage], has_more: false };
+        if (path === 'data_sources/db-123/query') return { results: [mockPage], has_more: false };
         if (path === 'pages') return { id: 'new-page' };
         throw new Error('Unexpected path');
       });
@@ -542,7 +541,7 @@ describe('Duplicate Command', () => {
       setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string, data: any) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'data_sources/ds-456/query') {
+        if (path === 'data_sources/db-123/query') {
           queryCallCount++;
           return queryCallCount === 1 ? firstBatch : secondBatch;
         }
@@ -552,7 +551,7 @@ describe('Duplicate Command', () => {
 
       await program.parseAsync(['node', 'test', 'duplicate', 'database', 'db-123', '--to', 'page-parent']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         start_cursor: 'cursor-123',
       }));
       // Should create 2 pages total
@@ -564,7 +563,7 @@ describe('Duplicate Command', () => {
       setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'data_sources/ds-456/query') {
+        if (path === 'data_sources/db-123/query') {
           return {
             results: [
               mockPage,
@@ -593,7 +592,7 @@ describe('Duplicate Command', () => {
       setupDatabaseResolution(mockClient);
       mockClient.post.mockImplementation(async (path: string) => {
         if (path === 'databases') return { id: 'new-db' };
-        if (path === 'data_sources/ds-456/query') return { results: [], has_more: false };
+        if (path === 'data_sources/db-123/query') return { results: [], has_more: false };
         throw new Error('Unexpected path');
       });
 

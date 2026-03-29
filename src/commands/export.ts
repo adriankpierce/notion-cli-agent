@@ -5,32 +5,10 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  richTextToMarkdown,
-} from '../utils/markdown.js';
 import { queryAllPages } from '../utils/database-resolver.js';
-import { blocksToMarkdownAsync, getPropertyRawValue } from '../utils/notion-helpers.js';
+import { readPageMarkdown, getPageTitle, getPropertyRawValue } from '../utils/notion-helpers.js';
 import { withErrorHandler } from '../utils/command-handler.js';
-import type { RichText, Page } from '../types/notion.js';
-
-/** Property raw value options pre-configured with markdown formatting for rich text. */
-const markdownPropertyOptions = {
-  richTextFormatter: (rt: { plain_text: string }[]) => richTextToMarkdown(rt as RichText[]),
-};
-
-/**
- * Extract the title from a Notion page with markdown formatting (bold, italic, etc.).
- * Used by export commands where rich text annotations must be preserved.
- */
-function getPageTitleMarkdown(page: Page): string {
-  for (const value of Object.values(page.properties)) {
-    const prop = value as { type: string; title?: RichText[] };
-    if (prop.type === 'title' && prop.title) {
-      return richTextToMarkdown(prop.title);
-    }
-  }
-  return 'Untitled';
-}
+import type { Page } from '../types/notion.js';
 
 function generateFrontmatter(page: Page, includeId = true): string {
   const lines: string[] = ['---'];
@@ -56,7 +34,7 @@ function generateFrontmatter(page: Page, includeId = true): string {
     const prop = value as Record<string, unknown>;
     if (prop.type === 'title') continue; // Title is the filename
     
-    const val = getPropertyRawValue(prop, markdownPropertyOptions);
+    const val = getPropertyRawValue(prop);
     if (val === null || val === undefined || val === '') continue;
     
     // Sanitize property name for YAML
@@ -105,7 +83,7 @@ export function registerExportCommand(program: Command): void {
 
       // Fetch page
       const page = await client.get(`pages/${pageId}`) as Page;
-      const title = getPageTitleMarkdown(page);
+      const title = getPageTitle(page);
 
       let output = '';
 
@@ -117,10 +95,13 @@ export function registerExportCommand(program: Command): void {
       // Add title
       output += `# ${title}\n\n`;
 
-      // Add content
+      // Add content via native markdown API
       if (options.content !== false) {
-        const content = await blocksToMarkdownAsync(client, pageId);
-        output += content;
+        const response = await readPageMarkdown(client, pageId);
+        output += response.markdown;
+        if (response.truncated) {
+          console.error('Warning: Page content was truncated (very large page)');
+        }
       }
 
       // Output
@@ -165,7 +146,7 @@ export function registerExportCommand(program: Command): void {
 
         let exported = 0;
         for (const page of pages) {
-          const title = getPageTitleMarkdown(page);
+          const title = getPageTitle(page);
           const filename = sanitizeFilename(title) + '.md';
           const filepath = path.join(outputFolder, filename);
 
@@ -174,8 +155,8 @@ export function registerExportCommand(program: Command): void {
 
           if (options.content) {
             try {
-              const pageContent = await blocksToMarkdownAsync(client, page.id);
-              content += pageContent;
+              const response = await readPageMarkdown(client, page.id);
+              content += response.markdown;
             } catch {
               content += `<!-- Failed to fetch content -->\n`;
             }

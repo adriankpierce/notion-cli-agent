@@ -51,35 +51,25 @@ describe('Export Command', () => {
       last_edited_time: '2026-01-02T00:00:00.000Z',
     };
 
-    const mockBlocks = {
-      results: [
-        {
-          id: 'block-1',
-          type: 'heading_1',
-          heading_1: { rich_text: [{ type: 'text', plain_text: 'Introduction' }] },
-          has_children: false,
-        },
-        {
-          id: 'block-2',
-          type: 'paragraph',
-          paragraph: { rich_text: [{ type: 'text', plain_text: 'This is content.' }] },
-          has_children: false,
-        },
-      ],
-      has_more: false,
+    const mockMarkdownResponse = {
+      object: 'page_markdown',
+      id: 'page-123',
+      markdown: '# Introduction\n\nThis is content.\n',
+      truncated: false,
+      unknown_block_ids: [],
     };
 
     it('should export page to stdout by default', async () => {
       mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('pages/')) return mockPageWithBlocks;
-        if (path.startsWith('blocks/')) return mockBlocks;
-        throw new Error('Unexpected path');
+        if (path === 'pages/page-123') return mockPageWithBlocks;
+        if (path === 'pages/page-123/markdown') return mockMarkdownResponse;
+        throw new Error(`Unexpected path: ${path}`);
       });
 
       await program.parseAsync(['node', 'test', 'export', 'page', 'page-123']);
 
       expect(mockClient.get).toHaveBeenCalledWith('pages/page-123');
-      expect(mockClient.get).toHaveBeenCalledWith('blocks/page-123/children');
+      expect(mockClient.get).toHaveBeenCalledWith('pages/page-123/markdown', {});
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Test Page'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Introduction'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('This is content.'));
@@ -87,9 +77,9 @@ describe('Export Command', () => {
 
     it('should export page to file with --output', async () => {
       mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('pages/')) return mockPageWithBlocks;
-        if (path.startsWith('blocks/')) return mockBlocks;
-        throw new Error('Unexpected path');
+        if (path === 'pages/page-123') return mockPageWithBlocks;
+        if (path === 'pages/page-123/markdown') return mockMarkdownResponse;
+        throw new Error(`Unexpected path: ${path}`);
       });
 
       await program.parseAsync(['node', 'test', 'export', 'page', 'page-123', '--output', '/tmp/page.md']);
@@ -103,9 +93,9 @@ describe('Export Command', () => {
 
     it('should include frontmatter with --obsidian', async () => {
       mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('pages/')) return mockPageWithBlocks;
-        if (path.startsWith('blocks/')) return mockBlocks;
-        throw new Error('Unexpected path');
+        if (path === 'pages/page-123') return mockPageWithBlocks;
+        if (path === 'pages/page-123/markdown') return mockMarkdownResponse;
+        throw new Error(`Unexpected path: ${path}`);
       });
 
       await program.parseAsync(['node', 'test', 'export', 'page', 'page-123', '--output', '/tmp/page.md', '--obsidian']);
@@ -123,9 +113,9 @@ describe('Export Command', () => {
 
       await program.parseAsync(['node', 'test', 'export', 'page', 'page-123', '--no-content']);
 
-      // Should not fetch blocks
+      // Should not fetch markdown
       expect(mockClient.get).toHaveBeenCalledWith('pages/page-123');
-      expect(mockClient.get).not.toHaveBeenCalledWith('blocks/page-123/children');
+      expect(mockClient.get).not.toHaveBeenCalledWith('pages/page-123/markdown', {});
 
       const output = (console.log as any).mock.calls[0][0];
       expect(output).toContain('# Test Page');
@@ -134,9 +124,9 @@ describe('Export Command', () => {
 
     it('should export without frontmatter when --no-frontmatter is used', async () => {
       mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('pages/')) return mockPageWithBlocks;
-        if (path.startsWith('blocks/')) return mockBlocks;
-        throw new Error('Unexpected path');
+        if (path === 'pages/page-123') return mockPageWithBlocks;
+        if (path === 'pages/page-123/markdown') return mockMarkdownResponse;
+        throw new Error(`Unexpected path: ${path}`);
       });
 
       await program.parseAsync(['node', 'test', 'export', 'page', 'page-123', '--obsidian', '--no-frontmatter', '--output', '/tmp/page.md']);
@@ -147,141 +137,25 @@ describe('Export Command', () => {
       expect(content).toContain('# Introduction');
     });
 
-    it('should handle paginated blocks', async () => {
-      const firstBatch = {
-        results: [mockBlocks.results[0]],
-        has_more: true,
-        next_cursor: 'cursor-123',
-      };
-      const secondBatch = {
-        results: [mockBlocks.results[1]],
-        has_more: false,
-      };
-
-      let callCount = 0;
-      mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('pages/')) return mockPageWithBlocks;
-        if (path.startsWith('blocks/page-123/children?start_cursor=')) return secondBatch;
-        if (path.startsWith('blocks/')) {
-          callCount++;
-          if (callCount === 1) return firstBatch;
-          return secondBatch;
-        }
-        throw new Error('Unexpected path');
-      });
-
-      await program.parseAsync(['node', 'test', 'export', 'page', 'page-123']);
-
-      expect(mockClient.get).toHaveBeenCalledWith('blocks/page-123/children');
-      expect(mockClient.get).toHaveBeenCalledWith('blocks/page-123/children?start_cursor=cursor-123');
-    });
-
-    it('should handle blocks with rich text annotations', async () => {
-      const richTextBlock = {
-        results: [
-          {
-            id: 'block-1',
-            type: 'paragraph',
-            paragraph: {
-              rich_text: [
-                {
-                  type: 'text',
-                  plain_text: 'bold text',
-                  annotations: { bold: true },
-                },
-                {
-                  type: 'text',
-                  plain_text: ' italic ',
-                  annotations: { italic: true },
-                },
-                {
-                  type: 'text',
-                  plain_text: 'code',
-                  annotations: { code: true },
-                },
-              ],
-            },
-            has_children: false,
-          },
-        ],
-        has_more: false,
+    it('should handle native markdown API returning content directly', async () => {
+      const richMarkdown = {
+        object: 'page_markdown',
+        id: 'page-123',
+        markdown: '**bold text** *italic* `code`\n\n# H1\n\n## H2\n\n- Bullet\n\n- [ ] Todo\n\n> Quote\n\n---\n\n```javascript\nconsole.log("hello")\n```\n',
+        truncated: false,
+        unknown_block_ids: [],
       };
 
       mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('pages/')) return mockPageWithBlocks;
-        if (path.startsWith('blocks/')) return richTextBlock;
-        throw new Error('Unexpected path');
+        if (path === 'pages/page-123') return mockPageWithBlocks;
+        if (path === 'pages/page-123/markdown') return richMarkdown;
+        throw new Error(`Unexpected path: ${path}`);
       });
 
       await program.parseAsync(['node', 'test', 'export', 'page', 'page-123']);
 
       const output = (console.log as any).mock.calls[0][0];
       expect(output).toContain('**bold text**');
-      expect(output).toContain('* italic *'); // Note: spaces included in plain_text
-      expect(output).toContain('`code`');
-    });
-
-    it('should convert different block types to markdown', async () => {
-      const mixedBlocks = {
-        results: [
-          {
-            id: 'b1',
-            type: 'heading_1',
-            heading_1: { rich_text: [{ type: 'text', plain_text: 'H1' }] },
-            has_children: false,
-          },
-          {
-            id: 'b2',
-            type: 'heading_2',
-            heading_2: { rich_text: [{ type: 'text', plain_text: 'H2' }] },
-            has_children: false,
-          },
-          {
-            id: 'b3',
-            type: 'bulleted_list_item',
-            bulleted_list_item: { rich_text: [{ type: 'text', plain_text: 'Bullet' }] },
-            has_children: false,
-          },
-          {
-            id: 'b4',
-            type: 'to_do',
-            to_do: { rich_text: [{ type: 'text', plain_text: 'Todo' }], checked: false },
-            has_children: false,
-          },
-          {
-            id: 'b5',
-            type: 'quote',
-            quote: { rich_text: [{ type: 'text', plain_text: 'Quote' }] },
-            has_children: false,
-          },
-          {
-            id: 'b6',
-            type: 'divider',
-            divider: {},
-            has_children: false,
-          },
-          {
-            id: 'b7',
-            type: 'code',
-            code: {
-              rich_text: [{ type: 'text', plain_text: 'console.log("hello")' }],
-              language: 'javascript',
-            },
-            has_children: false,
-          },
-        ],
-        has_more: false,
-      };
-
-      mockClient.get.mockImplementation(async (path: string) => {
-        if (path.startsWith('pages/')) return mockPageWithBlocks;
-        if (path.startsWith('blocks/')) return mixedBlocks;
-        throw new Error('Unexpected path');
-      });
-
-      await program.parseAsync(['node', 'test', 'export', 'page', 'page-123']);
-
-      const output = (console.log as any).mock.calls[0][0];
       expect(output).toContain('# H1');
       expect(output).toContain('## H2');
       expect(output).toContain('- Bullet');
@@ -301,7 +175,7 @@ describe('Export Command', () => {
 
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 100 });
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', { page_size: 100 });
       expect(mockFS.has('/vault/Test Page.md')).toBe(true);
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Exported 2 pages'));
     });
@@ -318,15 +192,21 @@ describe('Export Command', () => {
     });
 
     it('should export with content when --content is specified', async () => {
-      const mockPageBlocks = { results: [{ id: 'b1', type: 'paragraph', paragraph: { rich_text: [{ type: 'text', plain_text: 'Content' }] }, has_children: false }], has_more: false };
+      const mockMarkdownResp = {
+        object: 'page_markdown',
+        id: 'page-123',
+        markdown: 'Content from native API\n',
+        truncated: false,
+        unknown_block_ids: [],
+      };
       setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-      mockClient.get.mockResolvedValue(mockPageBlocks);
+      mockClient.get.mockResolvedValue(mockMarkdownResp);
 
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault', '--content']);
 
       const pageContent = mockFS.get('/vault/Test Page.md') || '';
-      expect(pageContent).toContain('Content');
+      expect(pageContent).toContain('Content from native API');
     });
 
     it('should respect --limit option', async () => {
@@ -337,7 +217,7 @@ describe('Export Command', () => {
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault', '--limit', '2']);
 
       // queryAllPages uses page_size 100 internally, limit is applied post-fetch
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 100 });
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', { page_size: 100 });
     });
 
     it('should apply --filter option', async () => {
@@ -348,7 +228,7 @@ describe('Export Command', () => {
       const filter = JSON.stringify({ property: 'Status', status: { equals: 'Done' } });
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault', '--filter', filter]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         filter: { property: 'Status', status: { equals: 'Done' } },
         page_size: 100,
       });

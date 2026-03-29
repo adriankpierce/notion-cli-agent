@@ -43,7 +43,7 @@ describe('Batch Command', () => {
 
   describe('batch from data string', () => {
     it('should execute get operations', async () => {
-      // Page get returns mockPage (first call), then database resolver needs 2 calls
+      // Page get returns mockPage (first call), then database resolver needs 1 call
       mockClient.get.mockResolvedValueOnce(mockPage);
       setupDatabaseResolution(mockClient);
 
@@ -55,8 +55,7 @@ describe('Batch Command', () => {
       await program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations)]);
 
       expect(mockClient.get).toHaveBeenCalledWith('pages/page-123');
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('succeeded'));
     });
 
@@ -146,7 +145,7 @@ describe('Batch Command', () => {
 
       await program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations)]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.any(Object),
       }));
     });
@@ -412,7 +411,7 @@ describe('Batch Command', () => {
 
       await program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations)]);
 
-      expect(mockClient.patch).toHaveBeenCalledWith('data_sources/ds-456', expect.any(Object));
+      expect(mockClient.patch).toHaveBeenCalledWith('data_sources/db-123', expect.any(Object));
     });
 
     it('should update block', async () => {

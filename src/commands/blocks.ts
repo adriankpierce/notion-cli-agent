@@ -4,10 +4,9 @@
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput, formatBlock } from '../utils/format.js';
-import { parseInlineMarkdown } from '../utils/markdown.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import { buildBlockPosition, buildTrashPayload } from '../utils/notion-helpers.js';
-import type { NotionRichTextItem, PaginatedResponse } from '../types/notion.js';
+import type { PaginatedResponse } from '../types/notion.js';
 
 export function registerBlocksCommand(program: Command): void {
   const blocks = program
@@ -186,10 +185,8 @@ export function registerBlocksCommand(program: Command): void {
     }));
 }
 
-// Block creation helpers — uses parseInlineMarkdown so that
-// CLI input like "**bold** text" produces properly annotated rich_text
-function createRichText(text: string): NotionRichTextItem[] {
-  return parseInlineMarkdown(text);
+function createRichText(text: string): { type: 'text'; text: { content: string } }[] {
+  return [{ type: 'text', text: { content: text } }];
 }
 
 function createParagraph(text: string): Record<string, unknown> {

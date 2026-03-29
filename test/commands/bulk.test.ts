@@ -45,9 +45,8 @@ describe('Bulk Command', () => {
         '--yes',
       ]);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.any(Object),
         page_size: 100,
       }));
@@ -101,7 +100,7 @@ describe('Bulk Command', () => {
         '--yes',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         page_size: 50,
       }));
     });
@@ -118,7 +117,7 @@ describe('Bulk Command', () => {
         '--yes',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           and: expect.any(Array),
         }),
@@ -226,7 +225,7 @@ describe('Bulk Command', () => {
         '--dry-run',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', expect.objectContaining({
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
         filter: expect.objectContaining({
           property: 'Priority',
         }),

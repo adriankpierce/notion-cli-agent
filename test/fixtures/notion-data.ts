@@ -351,15 +351,10 @@ export function createMockDataSource(id: string, title: string, properties: any 
 }
 
 /**
- * Helper to create a minimal database
- */
-/**
- * Helper: set up mockClient.get for the two-step database resolution flow.
- * Step 1: GET /databases/{id} → { data_sources: [{ id, name }] }
- * Step 2: GET /data_sources/{id} → schema with properties
+ * Helper: set up mockClient.get for database resolution.
  *
- * After calling this, mockClient.get will handle the resolver's discovery
- * and any subsequent GET calls (e.g., blocks, pages) via the fallback.
+ * In API v2026-03-11, the resolver tries GET /data_sources/{id} directly.
+ * If it returns object: "data_source", resolution is done in one call.
  */
 export function setupDatabaseResolution(
   mockClient: { get: any },
@@ -367,14 +362,8 @@ export function setupDatabaseResolution(
   dataSourceId = 'ds-456',
   additionalGetMocks: any[] = [],
 ) {
-  const discoveryResponse = {
-    ...mockMultiDsDatabase,
-    id: database.id,
-    title: database.title,
-    data_sources: [{ id: dataSourceId, name: 'Data Source' }],
-  };
-  const schemaResponse = {
-    ...mockDataSource,
+  const dataSourceResponse = {
+    object: 'data_source' as const,
     id: dataSourceId,
     title: database.title,
     description: (database as any).description,
@@ -382,9 +371,9 @@ export function setupDatabaseResolution(
     url: database.url,
   };
 
+  // Single call: GET /data_sources/{id} → returns full schema
   const mock = mockClient.get
-    .mockResolvedValueOnce(discoveryResponse)
-    .mockResolvedValueOnce(schemaResponse);
+    .mockResolvedValueOnce(dataSourceResponse);
 
   for (const additionalMock of additionalGetMocks) {
     mock.mockResolvedValueOnce(additionalMock);

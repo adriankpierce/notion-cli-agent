@@ -206,7 +206,7 @@ describe('Stats Command', () => {
 
       // Should query with a filter for last_edited_time on_or_after 7 days ago
       expect(mockClient.post).toHaveBeenCalledWith(
-        'data_sources/ds-456/query',
+        'data_sources/db-123/query',
         expect.objectContaining({
           filter: expect.objectContaining({
             timestamp: 'last_edited_time',

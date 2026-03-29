@@ -7,7 +7,7 @@ import {
   mockMultiDsDatabase,
 } from '../fixtures/notion-data';
 
-describe('DatabaseResolver (API v2025-09-03)', () => {
+describe('DatabaseResolver (API v2026-03-11)', () => {
   let mockClient: any;
   let resolver: typeof import('../../src/utils/database-resolver');
 
@@ -26,17 +26,13 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
   });
 
   /**
-   * Helper: set up mock chain for standard resolution flow.
-   * 1. GET /databases/{id} → { data_sources: [{ id, name }] }
-   * 2. GET /data_sources/{id} → schema with properties
+   * Helper: set up mock for the new resolution flow.
+   * GET /data_sources/{databaseId} → returns { object: 'data_source', ... }
+   * The resolver treats the input databaseId as the dataSourceId directly.
    */
-  function setupResolutionMocks(dataSourceId = 'ds-456') {
+  function setupResolutionMocks(databaseId = 'db-123') {
     mockClient.get
-      .mockResolvedValueOnce({
-        ...mockMultiDsDatabase,
-        data_sources: [{ id: dataSourceId, name: 'Test Data Source' }],
-      })
-      .mockResolvedValueOnce({ ...mockDataSource, id: dataSourceId });
+      .mockResolvedValueOnce({ ...mockDataSource, object: 'data_source', id: databaseId });
   }
 
   /**
@@ -50,42 +46,47 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
   // ─── resolveDatabase ──────────────────────────────────────────────────────
 
   describe('resolveDatabase()', () => {
-    it('should discover data_source via /databases/ then fetch schema from /data_sources/', async () => {
+    it('should resolve data_source directly via GET /data_sources/{databaseId}', async () => {
       setupResolutionMocks();
 
       const result = await resolver.resolveDatabase(mockClient, 'db-123');
 
       expect(result.type).toBe('data_source');
-      expect(result.schemaPath).toBe('data_sources/ds-456');
-      expect(result.queryPath).toBe('data_sources/ds-456/query');
-      expect(result.updatePath).toBe('data_sources/ds-456');
+      expect(result.schemaPath).toBe('data_sources/db-123');
+      expect(result.queryPath).toBe('data_sources/db-123/query');
+      expect(result.updatePath).toBe('data_sources/db-123');
       expect(result.schema.properties).toBeDefined();
       expect(result.databaseId).toBe('db-123');
-      expect(result.dataSourceId).toBe('ds-456');
-      // Step 1: discover
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      // Step 2: fetch schema
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(result.dataSourceId).toBe('db-123');
+      // Single call: GET /data_sources/{databaseId}
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
+      expect(mockClient.get).toHaveBeenCalledTimes(1);
     });
 
-    it('should error with helpful message when multiple data sources exist', async () => {
-      mockClient.get.mockResolvedValueOnce({
-        ...mockMultiDsDatabase,
-        data_sources: [
-          { id: 'ds-1', name: 'Source A' },
-          { id: 'ds-2', name: 'Source B' },
-        ],
-      });
+    it('should fall back to legacy discovery and error with helpful message when multiple data sources exist', async () => {
+      // First call: GET /data_sources/{id} fails (not a data_source)
+      mockClient.get
+        .mockRejectedValueOnce(new Error('Not found'))
+        .mockResolvedValueOnce({
+          ...mockMultiDsDatabase,
+          data_sources: [
+            { id: 'ds-1', name: 'Source A' },
+            { id: 'ds-2', name: 'Source B' },
+          ],
+        });
 
       await expect(resolver.resolveDatabase(mockClient, 'multi-ds-db-123'))
         .rejects.toThrow('--data-source-id');
     });
 
-    it('should error when database has no data sources', async () => {
-      mockClient.get.mockResolvedValueOnce({
-        ...mockMultiDsDatabase,
-        data_sources: [],
-      });
+    it('should fall back to legacy discovery and error when database has no data sources', async () => {
+      // First call: GET /data_sources/{id} fails (not a data_source)
+      mockClient.get
+        .mockRejectedValueOnce(new Error('Not found'))
+        .mockResolvedValueOnce({
+          ...mockMultiDsDatabase,
+          data_sources: [],
+        });
 
       await expect(resolver.resolveDatabase(mockClient, 'empty-db'))
         .rejects.toThrow('no data sources');
@@ -111,7 +112,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
       const result2 = await resolver.resolveDatabase(mockClient, 'db-123');
 
       expect(result1).toBe(result2);
-      expect(mockClient.get).toHaveBeenCalledTimes(2); // discovery + schema, then cached
+      expect(mockClient.get).toHaveBeenCalledTimes(1); // single call, then cached
     });
 
     it('should cache resolution with explicit dataSourceId using composite key', async () => {
@@ -125,31 +126,29 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
     });
 
     it('should not share cache between different database IDs', async () => {
-      const ds1 = createMockDataSource('ds-1', 'DS One');
-      const ds2 = createMockDataSource('ds-2', 'DS Two');
+      const ds1 = createMockDataSource('db-1', 'DS One');
+      const ds2 = createMockDataSource('db-2', 'DS Two');
 
       mockClient.get
-        .mockResolvedValueOnce({ data_sources: [{ id: 'ds-1', name: 'DS One' }] })
-        .mockResolvedValueOnce(ds1)
-        .mockResolvedValueOnce({ data_sources: [{ id: 'ds-2', name: 'DS Two' }] })
-        .mockResolvedValueOnce(ds2);
+        .mockResolvedValueOnce({ ...ds1, object: 'data_source' })
+        .mockResolvedValueOnce({ ...ds2, object: 'data_source' });
 
       const result1 = await resolver.resolveDatabase(mockClient, 'db-1');
       const result2 = await resolver.resolveDatabase(mockClient, 'db-2');
 
-      expect(result1.dataSourceId).toBe('ds-1');
-      expect(result2.dataSourceId).toBe('ds-2');
-      expect(mockClient.get).toHaveBeenCalledTimes(4);
+      expect(result1.dataSourceId).toBe('db-1');
+      expect(result2.dataSourceId).toBe('db-2');
+      expect(mockClient.get).toHaveBeenCalledTimes(2);
     });
 
-    it('should propagate errors without swallowing', async () => {
+    it('should propagate errors when both direct and legacy paths fail', async () => {
       mockClient.get.mockRejectedValue(new Error('Notion API Error (404): Resource not found'));
 
       await expect(resolver.resolveDatabase(mockClient, 'bad-id'))
         .rejects.toThrow('Notion API Error (404)');
     });
 
-    it('should propagate network errors', async () => {
+    it('should propagate network errors when both paths fail', async () => {
       mockClient.get.mockRejectedValue(new Error('fetch failed'));
 
       await expect(resolver.resolveDatabase(mockClient, 'db-123'))
@@ -165,7 +164,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
       setupResolutionMocks();
       await resolver.resolveDatabase(mockClient, 'db-123');
 
-      expect(mockClient.get).toHaveBeenCalledTimes(4); // 2 per resolution
+      expect(mockClient.get).toHaveBeenCalledTimes(2); // 1 per resolution
     });
 
     it('should normalize data_source response to Database shape', async () => {
@@ -182,20 +181,17 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
     it('should handle database ID with dashes (UUID format)', async () => {
       const uuidId = '2c98284a-8643-8140-9380-deaf158a1077';
       mockClient.get
-        .mockResolvedValueOnce({ data_sources: [{ id: 'ds-uuid', name: 'UUID DS' }] })
-        .mockResolvedValueOnce({ ...mockDataSource, id: 'ds-uuid' });
+        .mockResolvedValueOnce({ ...mockDataSource, object: 'data_source', id: uuidId });
 
       const result = await resolver.resolveDatabase(mockClient, uuidId);
 
       expect(result.databaseId).toBe(uuidId);
-      expect(mockClient.get).toHaveBeenCalledWith(`databases/${uuidId}`);
+      expect(mockClient.get).toHaveBeenCalledWith(`data_sources/${uuidId}`);
     });
 
     it('should handle data_source with minimal properties', async () => {
-      const minimalDs = { object: 'data_source', id: 'ds-minimal', properties: {} };
-      mockClient.get
-        .mockResolvedValueOnce({ data_sources: [{ id: 'ds-minimal', name: 'Minimal' }] })
-        .mockResolvedValueOnce(minimalDs);
+      const minimalDs = { object: 'data_source', id: 'db-minimal', properties: {} };
+      mockClient.get.mockResolvedValueOnce(minimalDs);
 
       const result = await resolver.resolveDatabase(mockClient, 'db-minimal');
 
@@ -223,14 +219,14 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
   // ─── getDatabaseSchema ─────────────────────────────────────────────────────
 
   describe('getDatabaseSchema()', () => {
-    it('should return schema via discovery', async () => {
+    it('should return schema via direct data_source lookup', async () => {
       setupResolutionMocks();
 
       const schema = await resolver.getDatabaseSchema(mockClient, 'db-123');
 
       expect(schema.properties).toBeDefined();
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
+      expect(mockClient.get).toHaveBeenCalledTimes(1);
     });
 
     it('should return schema for explicit data source ID', async () => {
@@ -248,7 +244,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
       await resolver.getDatabaseSchema(mockClient, 'db-123');
       await resolver.getDatabaseSchema(mockClient, 'db-123');
 
-      expect(mockClient.get).toHaveBeenCalledTimes(2); // discovery + schema, then cached
+      expect(mockClient.get).toHaveBeenCalledTimes(1); // single call, then cached
     });
   });
 
@@ -262,7 +258,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
 
       const result = await resolver.queryDatabase(mockClient, 'db-123', { page_size: 10 });
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 10 });
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', { page_size: 10 });
       expect(result).toEqual(queryResult);
     });
 
@@ -282,7 +278,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
 
       await resolver.queryDatabase(mockClient, 'db-123');
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {});
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {});
     });
 
     it('should pass complex filter bodies through unchanged', async () => {
@@ -298,7 +294,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
 
       await resolver.queryDatabase(mockClient, 'db-123', complexBody);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', complexBody);
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', complexBody);
     });
 
     it('should use cached resolution for subsequent queries', async () => {
@@ -308,8 +304,8 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
       await resolver.queryDatabase(mockClient, 'db-123', {});
       await resolver.queryDatabase(mockClient, 'db-123', { page_size: 5 });
 
-      // get called twice for resolution (discovery + schema), post called twice for queries
-      expect(mockClient.get).toHaveBeenCalledTimes(2);
+      // get called once for resolution (direct data_source), post called twice for queries
+      expect(mockClient.get).toHaveBeenCalledTimes(1);
       expect(mockClient.post).toHaveBeenCalledTimes(2);
     });
   });
@@ -324,7 +320,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
       const body = { title: [{ type: 'text', text: { content: 'Updated' } }] };
       await resolver.updateDatabase(mockClient, 'db-123', body);
 
-      expect(mockClient.patch).toHaveBeenCalledWith('data_sources/ds-456', body);
+      expect(mockClient.patch).toHaveBeenCalledWith('data_sources/db-123', body);
     });
 
     it('should update with explicit data source ID', async () => {
@@ -349,7 +345,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
       const resolved = await resolver.resolveDatabase(mockClient, 'db-123');
       const result = await resolver.queryDatabaseDirect(mockClient, resolved, { page_size: 10 });
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 10 });
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', { page_size: 10 });
       expect(result).toEqual(queryResult);
     });
   });
@@ -383,7 +379,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
 
       await resolver.queryAllPages(mockClient, 'db-123', { filter, sorts: sorts as any });
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         page_size: 100,
         filter,
         sorts,
@@ -407,7 +403,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
 
       await resolver.queryAllPages(mockClient, 'db-123', { pageSize: 50 });
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         page_size: 50,
       });
     });
@@ -446,7 +442,7 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
 
       await resolver.queryAllPages(mockClient, 'db-123');
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         page_size: 100,
         start_cursor: 'cursor-xyz',
       });
@@ -481,8 +477,8 @@ describe('DatabaseResolver (API v2025-09-03)', () => {
       resolver.setGlobalDataSourceId(undefined);
       await resolver.getDatabaseSchema(mockClient, 'db-123');
 
-      // Without global, goes through discovery
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
+      // Without global, goes through direct data_source lookup
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
     });
 
     it('should flow through to queryDatabase', async () => {

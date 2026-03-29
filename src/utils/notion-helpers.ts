@@ -1,13 +1,10 @@
 /**
  * Shared Notion API helper functions
  *
- * Consolidates utility functions that were previously duplicated across
- * multiple command files: fetchAllBlocks, getPageTitle, getPropertyValue,
- * getDbTitle, blocksToMarkdownAsync.
- *
  * Exported functions:
  *   - fetchAllBlocks(client, blockId)           → Block[]   (paginated child block fetcher)
- *   - blocksToMarkdownAsync(client, blockId)     → string    (recursive async blocks → markdown)
+ *   - readPageMarkdown(client, pageId, opts?)   → PageMarkdownResponse (native markdown read)
+ *   - writePageMarkdown(client, pageId, md)     → PageMarkdownResponse (native markdown write)
  *   - getPageTitle(page)                         → string    (extract title from page properties)
  *   - getDbTitle(db)                             → string    (extract title from database)
  *   - getDbDescription(db)                       → string    (extract description from database)
@@ -18,8 +15,7 @@
  */
 
 import type { getClient } from '../client.js';
-import type { Block, Page, Database, PaginatedResponse } from '../types/notion.js';
-import { getBlockContent } from './markdown.js';
+import type { Block, Page, Database, PageMarkdownResponse, PaginatedResponse } from '../types/notion.js';
 
 // ─── Block Fetching ─────────────────────────────────────────────────────────
 
@@ -47,43 +43,71 @@ export async function fetchAllBlocks(
   return blocks;
 }
 
-// ─── Blocks → Markdown (async, recursive) ──────────────────────────────────
+// ─── Native Markdown API ────────────────────────────────────────────────────
 
 /**
- * Recursively fetch all child blocks of a page/block and convert to Markdown.
- * Uses the Notion API to fetch children on-the-fly (unlike blocksToMarkdownSync
- * which requires pre-fetched blocks).
+ * Read a page's content as markdown via Notion's native markdown endpoint.
+ * GET /v1/pages/{id}/markdown
  */
-export async function blocksToMarkdownAsync(
+export async function readPageMarkdown(
   client: ReturnType<typeof getClient>,
-  blockId: string,
-  indent = 0
-): Promise<string> {
-  const blocks = await fetchAllBlocks(client, blockId);
-  let markdown = '';
-  const indentStr = '  '.repeat(indent);
+  pageId: string,
+  options?: { includeTranscript?: boolean },
+): Promise<PageMarkdownResponse> {
+  const query: Record<string, string> = {};
+  if (options?.includeTranscript) query.include_transcript = 'true';
+  return client.get<PageMarkdownResponse>(`pages/${pageId}/markdown`, query);
+}
 
-  for (const block of blocks) {
-    let content = getBlockContent(block);
+/**
+ * Replace a page's entire content with markdown.
+ * PATCH /v1/pages/{id}/markdown  (type: replace_content)
+ *
+ * @param allowDeletingContent - When true, allows deletion of child pages/databases
+ *   embedded in the page. Defaults to false (safe). Notion returns a validation_error
+ *   if the replacement would remove child pages/databases and this is false.
+ */
+export async function writePageMarkdown(
+  client: ReturnType<typeof getClient>,
+  pageId: string,
+  markdown: string,
+  options?: { allowDeletingContent?: boolean },
+): Promise<PageMarkdownResponse> {
+  return client.patch<PageMarkdownResponse>(`pages/${pageId}/markdown`, {
+    type: 'replace_content',
+    replace_content: {
+      new_str: markdown,
+      allow_deleting_content: options?.allowDeletingContent ?? false,
+    },
+  });
+}
 
-    // Add indentation for nested content
-    if (indent > 0) {
-      content = content
-        .split('\n')
-        .map(line => (line ? indentStr + line : ''))
-        .join('\n');
-    }
-
-    markdown += content;
-
-    // Recursively handle children
-    if (block.has_children) {
-      const childContent = await blocksToMarkdownAsync(client, block.id, indent + 1);
-      markdown += childContent;
-    }
-  }
-
-  return markdown;
+/**
+ * Apply surgical search-and-replace operations to a page's markdown content.
+ * PATCH /v1/pages/{id}/markdown  (type: update_content)
+ *
+ * Each update's old_str must match exactly one location (case-sensitive) unless
+ * replace_all_matches is true. Returns validation_error if no match found or
+ * if multiple matches found without replace_all_matches.
+ *
+ * Max 100 content_updates per request.
+ *
+ * @param allowDeletingContent - When true, allows deletion of child pages/databases.
+ *   Defaults to false (safe).
+ */
+export async function updatePageMarkdown(
+  client: ReturnType<typeof getClient>,
+  pageId: string,
+  updates: { old_str: string; new_str: string; replace_all_matches?: boolean }[],
+  options?: { allowDeletingContent?: boolean },
+): Promise<PageMarkdownResponse> {
+  return client.patch<PageMarkdownResponse>(`pages/${pageId}/markdown`, {
+    type: 'update_content',
+    update_content: {
+      content_updates: updates,
+      allow_deleting_content: options?.allowDeletingContent ?? false,
+    },
+  });
 }
 
 // ─── Title Extraction ───────────────────────────────────────────────────────

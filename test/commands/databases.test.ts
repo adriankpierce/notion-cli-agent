@@ -35,8 +35,7 @@ describe('Databases Command', () => {
 
       await program.parseAsync(['node', 'test', 'database', 'get', 'db-123']);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(console.log).toHaveBeenCalledWith('Database:', 'Test Database');
       expect(console.log).toHaveBeenCalledWith('ID:', 'ds-456');
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Properties:'));
@@ -59,7 +58,7 @@ describe('Databases Command', () => {
 
       await program.parseAsync(['node', 'test', 'database', 'query', 'db-123']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         page_size: 100,
       });
     });
@@ -75,7 +74,7 @@ describe('Databases Command', () => {
         '--filter', filter,
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         filter: { property: 'Status', status: { equals: 'Done' } },
         page_size: 100,
       });
@@ -94,7 +93,7 @@ describe('Databases Command', () => {
         '--filter-prop-type', 'status',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         filter: {
           property: 'Status',
           status: { equals: 'Done' },
@@ -113,7 +112,7 @@ describe('Databases Command', () => {
         '--sort', 'Created',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         sorts: [{
           property: 'Created',
           direction: 'descending',
@@ -133,7 +132,7 @@ describe('Databases Command', () => {
         '--sort-dir', 'asc',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         sorts: [{
           property: 'Priority',
           direction: 'ascending',
@@ -152,7 +151,7 @@ describe('Databases Command', () => {
         '--limit', '50',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         page_size: 50,
       });
     });
@@ -167,7 +166,7 @@ describe('Databases Command', () => {
         '--cursor', 'cursor-123',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         page_size: 100,
         start_cursor: 'cursor-123',
       });
@@ -211,7 +210,7 @@ describe('Databases Command', () => {
         '--limit', '25',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         filter: {
           property: 'Status',
           status: { equals: 'In Progress' },
@@ -243,7 +242,7 @@ describe('Databases Command', () => {
         '--filter-prop-type', 'checkbox',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         filter: {
           and: [
             { property: 'Due Date', date: { before: '2024-01-01' } },
@@ -275,7 +274,7 @@ describe('Databases Command', () => {
         '--filter-prop-type', 'checkbox',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         filter: {
           and: [
             { property: 'Status', status: { equals: 'Done' } },
@@ -335,7 +334,7 @@ describe('Databases Command', () => {
         '--filter-prop-type', 'status',
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         filter: { property: 'Status', status: { equals: 'Done' } },
         page_size: 100,
       });
@@ -352,7 +351,7 @@ describe('Databases Command', () => {
         '--filter', filter,
       ]);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', {
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', {
         filter: { property: 'Status', status: { equals: 'Done' } },
         page_size: 100,
       });
@@ -369,7 +368,7 @@ describe('Databases Command', () => {
       await program.parseAsync(['node', 'test', 'database', 'query', 'db-123', '--title', 'My Task']);
 
       expect(mockClient.post).toHaveBeenCalledWith(
-        'data_sources/ds-456/query',
+        'data_sources/db-123/query',
         expect.objectContaining({
           filter: { property: 'Name', title: { equals: 'My Task' } },
         })

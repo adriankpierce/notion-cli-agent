@@ -43,6 +43,7 @@ import { registerValidateCommand } from './commands/validate.js';
 import { registerBackupCommand } from './commands/backup.js';
 import { registerRelationsCommand } from './commands/relations.js';
 import { registerHelpAgentCommand } from './commands/help-agent.js';
+import { registerSkillCommand } from './commands/skill.js';
 
 const program = new Command();
 
@@ -52,7 +53,12 @@ program
   .version(version)
   .option('--token <token>', 'Notion API token (or set NOTION_TOKEN env var)')
   .option('--data-source-id <id>', 'Explicit data source ID for multi-data-source databases')
-  .hook('preAction', (thisCommand) => {
+  .hook('preAction', (thisCommand, actionCommand) => {
+    // Skip auth for commands that don't need the Notion API
+    const cmdName = actionCommand.name();
+    if (cmdName === 'install' || actionCommand.parent?.name() === 'skill' || cmdName === 'quickstart') {
+      return;
+    }
     const opts = thisCommand.opts();
     try {
       initClient(opts.token);
@@ -84,6 +90,7 @@ registerValidateCommand(program);
 registerBackupCommand(program);
 registerRelationsCommand(program);
 registerHelpAgentCommand(program);
+registerSkillCommand(program);
 
 // Raw API command for advanced users
 program

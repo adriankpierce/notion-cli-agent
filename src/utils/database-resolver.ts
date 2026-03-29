@@ -78,15 +78,36 @@ function buildPaths(dataSourceId: string) {
 }
 
 /**
- * Discover the data_source_id for a database.
- * On API v2025-09-03, GET /databases/{id} returns a data_sources array
- * instead of properties. We pick the first (or only) data source.
- * If multiple exist, the user must specify --data-source-id explicitly.
+ * Discover and resolve a database/data_source ID in one step.
+ *
+ * In API v2026-03-11, the "database" concept is fully replaced by "data_source".
+ * IDs from search results and the Notion UI are data_source IDs directly.
+ * We try GET /data_sources/{id} first; if that fails, fall back to the old
+ * GET /databases/{id} discovery path for backward compatibility.
+ *
+ * Returns a fully resolved database — avoids a redundant second fetch.
  */
-async function discoverDataSourceId(
+async function discoverAndResolve(
   client: NotionClient,
   databaseId: string,
-): Promise<string> {
+): Promise<ResolvedDatabase> {
+  // v2026-03-11: the ID is likely already a data_source ID
+  try {
+    const ds = await client.get<Record<string, unknown>>(`data_sources/${databaseId}`);
+    if (ds.object === 'data_source') {
+      return {
+        type: 'data_source',
+        databaseId,
+        dataSourceId: databaseId,
+        ...buildPaths(databaseId),
+        schema: normalizeToDatabase(ds, databaseId),
+      };
+    }
+  } catch {
+    // Not a data_source — fall through to legacy discovery
+  }
+
+  // Legacy path (v2025-09-03): GET /databases/{id} returns a data_sources array
   const db = await client.get<{ data_sources?: { id: string; name: string }[] }>(
     `databases/${databaseId}`,
   );
@@ -106,7 +127,7 @@ async function discoverDataSourceId(
     );
   }
 
-  return sources[0].id;
+  return fetchDataSource(client, databaseId, sources[0].id);
 }
 
 /**
@@ -156,14 +177,6 @@ export function resolveDatabase(
   }
 
   return cache.get(key)!;
-}
-
-async function discoverAndResolve(
-  client: NotionClient,
-  databaseId: string,
-): Promise<ResolvedDatabase> {
-  const dataSourceId = await discoverDataSourceId(client, databaseId);
-  return fetchDataSource(client, databaseId, dataSourceId);
 }
 
 // ─── High-level helpers ─────────────────────────────────────────────────────

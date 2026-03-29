@@ -1,7 +1,6 @@
 # Agent Workflow Recipes
 
-Common Notion workflows for AI agents. Each recipe assumes workspace state exists at
-`~/.config/notion/workspace.json` (run notion-onboarding skill first).
+Common Notion workflows for AI agents. Use `notion inspect ws --compact` to discover database IDs.
 
 ---
 
@@ -11,7 +10,7 @@ Review and organize today's tasks.
 
 ```bash
 # 1. Load task DB from state
-TASKS=$(cat ~/.config/notion/workspace.json | jq -r '.databases.tasks.id')
+TASKS=$(notion inspect ws --compact   # find your tasks DB id)
 
 # 2. What's overdue?
 notion find "overdue" -d $TASKS --llm
@@ -37,8 +36,8 @@ notion bulk update $TASKS --where "Status=In Review" --set "Status=Done" --dry-r
 Summarize the week and prep for the next.
 
 ```bash
-TASKS=$(cat ~/.config/notion/workspace.json | jq -r '.databases.tasks.id')
-PROJECTS=$(cat ~/.config/notion/workspace.json | jq -r '.databases.projects.id')
+TASKS=$(notion inspect ws --compact   # find your tasks DB id)
+PROJECTS=$(notion inspect ws --compact   # find your projects DB id)
 
 # What was completed this week?
 notion stats timeline $TASKS --days 7
@@ -57,8 +56,8 @@ notion db query $PROJECTS --filter-prop "Status" \
 ## Create a new project + first tasks
 
 ```bash
-PROJECTS=$(cat ~/.config/notion/workspace.json | jq -r '.databases.projects.id')
-TASKS=$(cat ~/.config/notion/workspace.json | jq -r '.databases.tasks.id')
+PROJECTS=$(notion inspect ws --compact   # find your projects DB id)
+TASKS=$(notion inspect ws --compact   # find your tasks DB id)
 
 # Create project
 notion page create --parent $PROJECTS \
@@ -97,7 +96,7 @@ notion ai summarize <page_id>
 ## Sync tasks from an external source (e.g., GitHub issues)
 
 ```bash
-TASKS=$(cat ~/.config/notion/workspace.json | jq -r '.databases.tasks.id')
+TASKS=$(notion inspect ws --compact   # find your tasks DB id)
 
 # For each issue, create a task
 notion page create --parent $TASKS \
@@ -117,12 +116,7 @@ notion batch --llm --data '[
 ## OKR/Goals check-in
 
 ```bash
-GOALS=$(cat ~/.config/notion/workspace.json | jq -r '.databases.goals.id // empty')
-
-if [ -z "$GOALS" ]; then
-  echo "No goals database in workspace state. Run notion-onboarding to add it."
-  exit 1
-fi
+GOALS=$(notion inspect ws --compact   # find your goals DB id)
 
 # List active goals
 notion db query $GOALS \
@@ -141,7 +135,7 @@ notion page update <goal_page_id> --prop "Status=On track"
 ## Bulk cleanup — archive completed old tasks
 
 ```bash
-TASKS=$(cat ~/.config/notion/workspace.json | jq -r '.databases.tasks.id')
+TASKS=$(notion inspect ws --compact   # find your tasks DB id)
 
 # Preview first
 notion bulk archive $TASKS --where "Status=Done" --dry-run
@@ -158,7 +152,7 @@ notion bulk archive $TASKS --where "Status=Done" --yes
 ## Export to Obsidian / backup
 
 ```bash
-TASKS=$(cat ~/.config/notion/workspace.json | jq -r '.databases.tasks.id')
+TASKS=$(notion inspect ws --compact   # find your tasks DB id)
 
 # Export to Obsidian vault
 notion export db $TASKS --vault ~/obsidian-vault --folder notion-tasks --content
@@ -171,7 +165,7 @@ notion backup $TASKS -o ./backups/tasks-$(date +%Y%m%d) --content
 
 ## Tips
 
-- Always load `~/.config/notion/workspace.json` at the start of any workflow script
+- Run `notion inspect ws --compact` to find database IDs
 - Run `notion find "..." --explain` to see what filter was generated before committing
 - Use `notion ai prompt <db_id>` to get a DB-specific prompt if you're unsure of the schema
 - For multi-step workflows involving many pages, write intermediate results to a temp file rather than keeping them in memory across tool calls

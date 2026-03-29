@@ -149,8 +149,7 @@ describe('Pages Command', () => {
         '--title', 'New Task',
       ]);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(mockClient.post).toHaveBeenCalledWith('pages', {
         parent: { database_id: 'db-123' },
         properties: {
@@ -210,15 +209,16 @@ describe('Pages Command', () => {
       });
     });
 
-    it('should create page with initial content', async () => {
+    it('should create page with markdown content from file', async () => {
       const createdPage = { ...mockPage, id: 'new-page-123', url: 'https://notion.so/new-page-123' };
       mockClient.post.mockResolvedValue(createdPage);
+      mockFS.set('content.md', '# Hello\n\nThis is content.');
 
       await program.parseAsync([
         'node', 'test', 'page', 'create',
         '--parent', 'db-123',
         '--title', 'New Page',
-        '--content', 'This is the initial content',
+        '--file', 'content.md',
       ]);
 
       expect(mockClient.post).toHaveBeenCalledWith('pages', {
@@ -228,13 +228,7 @@ describe('Pages Command', () => {
             title: [{ text: { content: 'New Page' } }],
           },
         },
-        children: [{
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: [{ type: 'text', text: { content: 'This is the initial content' } }],
-          },
-        }],
+        markdown: '# Hello\n\nThis is content.',
       });
     });
 
@@ -396,8 +390,7 @@ describe('Pages Command', () => {
       ]);
 
       expect(mockClient.get).toHaveBeenCalledWith('pages/page-123');
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123', {
         properties: {
           Name: { title: [{ text: { content: 'Renamed Page' } }] },
@@ -585,23 +578,31 @@ describe('Pages Command', () => {
   });
 
   describe('page read', () => {
+    const mockMarkdownResponse = {
+      object: 'page_markdown',
+      id: 'page-123',
+      markdown: 'This is a test paragraph.\n\n# Test Heading\n',
+      truncated: false,
+      unknown_block_ids: [],
+    };
+
     it('should read page content as markdown to stdout', async () => {
       const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
-      // First call: get page for title, second call: get blocks
+      // First call: get page for title, second call: get markdown
       mockClient.get
         .mockResolvedValueOnce(mockPage) // pages/{id}
-        .mockResolvedValueOnce(mockBlockChildren); // blocks/{id}/children
+        .mockResolvedValueOnce(mockMarkdownResponse); // pages/{id}/markdown
 
       await program.parseAsync(['node', 'test', 'page', 'read', 'page-123']);
 
       expect(mockClient.get).toHaveBeenCalledWith('pages/page-123');
+      expect(mockClient.get).toHaveBeenCalledWith('pages/page-123/markdown', {});
 
       // Should output markdown via stdout.write
       const output = stdoutSpy.mock.calls.map(c => c[0]).join('');
       expect(output).toContain('# Test Page');
       expect(output).toContain('This is a test paragraph.');
-      expect(output).toContain('# Test Heading');
 
       stdoutSpy.mockRestore();
     });
@@ -609,7 +610,7 @@ describe('Pages Command', () => {
     it('should omit title with --no-title', async () => {
       const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
-      mockClient.get.mockResolvedValueOnce(mockBlockChildren); // blocks/{id}/children
+      mockClient.get.mockResolvedValueOnce(mockMarkdownResponse); // pages/{id}/markdown
 
       await program.parseAsync(['node', 'test', 'page', 'read', 'page-123', '--no-title']);
 
@@ -644,257 +645,97 @@ describe('Pages Command', () => {
     });
   });
 
-  describe('page write', () => {
-    it('should write markdown from file', async () => {
-      mockFS.set('test.md', '# Hello\n\nWorld');
-
-      mockClient.patch.mockResolvedValue({ results: [] });
-
-      await program.parseAsync([
-        'node', 'test', 'page', 'write', 'page-123',
-        '--file', 'test.md',
-      ]);
-
-      // Should have appended blocks
-      expect(mockClient.patch).toHaveBeenCalledWith('blocks/page-123/children', {
-        children: expect.arrayContaining([
-          expect.objectContaining({ type: 'heading_1' }),
-          expect.objectContaining({ type: 'paragraph' }),
-        ]),
-      });
-    });
-
-    it('should replace content with --replace', async () => {
-      mockFS.set('test.md', 'New content');
-
-      // First: fetch existing blocks to delete
-      mockClient.get.mockResolvedValueOnce({
-        results: [
-          { id: 'old-block-1', type: 'paragraph', has_children: false },
-          { id: 'old-block-2', type: 'paragraph', has_children: false },
-        ],
-        has_more: false,
-      });
-
-      mockClient.delete.mockResolvedValue({});
-      mockClient.patch.mockResolvedValue({ results: [] });
-
-      await program.parseAsync([
-        'node', 'test', 'page', 'write', 'page-123',
-        '--file', 'test.md',
-        '--replace',
-      ]);
-
-      // Should have deleted old blocks
-      expect(mockClient.delete).toHaveBeenCalledWith('blocks/old-block-1');
-      expect(mockClient.delete).toHaveBeenCalledWith('blocks/old-block-2');
-
-      // Should have appended new blocks
-      expect(mockClient.patch).toHaveBeenCalledWith('blocks/page-123/children', {
-        children: expect.arrayContaining([
-          expect.objectContaining({ type: 'paragraph' }),
-        ]),
-      });
-    });
-
-    it('should show dry run without making changes', async () => {
-      mockFS.set('test.md', '# Title\n\nParagraph');
-
-      await program.parseAsync([
-        'node', 'test', 'page', 'write', 'page-123',
-        '--file', 'test.md',
-        '--dry-run',
-      ]);
-
-      // Should NOT have made any API calls
-      expect(mockClient.patch).not.toHaveBeenCalled();
-      expect(mockClient.delete).not.toHaveBeenCalled();
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Parsed'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Dry run'));
-    });
-
-    it('should error when file not found', async () => {
-      // mockFS does not have 'missing.md'
-
-      await expect(
-        program.parseAsync([
-          'node', 'test', 'page', 'write', 'page-123',
-          '--file', 'missing.md',
-        ])
-      ).rejects.toThrow('process.exit(1)');
-
-      expect(console.error).toHaveBeenCalledWith('Error: File not found: missing.md');
-    });
-
-    it('should error when no content from stdin (TTY)', async () => {
-      // Simulate a TTY (no piped input)
-      const originalIsTTY = process.stdin.isTTY;
-      Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
-
-      await expect(
-        program.parseAsync(['node', 'test', 'page', 'write', 'page-123'])
-      ).rejects.toThrow('process.exit(1)');
-
-      expect(console.error).toHaveBeenCalledWith('Error: No content provided. Use --file or pipe content via stdin.');
-
-      Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true });
-    });
-  });
 
   describe('page edit', () => {
-    const existingBlocks = {
-      results: [
-        { id: 'block-aaa', type: 'heading_1', has_children: false, heading_1: { rich_text: [{ plain_text: 'Title' }] } },
-        { id: 'block-bbb', type: 'paragraph', has_children: false, paragraph: { rich_text: [{ plain_text: 'Para 1' }] } },
-        { id: 'block-ccc', type: 'paragraph', has_children: false, paragraph: { rich_text: [{ plain_text: 'Para 2' }] } },
-        { id: 'block-ddd', type: 'paragraph', has_children: false, paragraph: { rich_text: [{ plain_text: 'Para 3' }] } },
-      ],
-      has_more: false,
+    const existingMarkdown = {
+      object: 'page_markdown',
+      id: 'page-123',
+      markdown: '# Title\nPara 1\nPara 2\nPara 3',
+      truncated: false,
+      unknown_block_ids: [],
     };
 
-    it('should delete blocks after a given block', async () => {
-      mockClient.get.mockResolvedValueOnce(existingBlocks);
-      mockClient.delete.mockResolvedValue({});
+    const mockUpdateResponse = {
+      object: 'page_markdown',
+      id: 'page-123',
+      markdown: '# Title\nReplaced\nPara 2\nPara 3',
+      truncated: false,
+      unknown_block_ids: [],
+    };
+
+    it('should search and replace text via update_content', async () => {
+      mockClient.patch.mockResolvedValue(mockUpdateResponse);
 
       await program.parseAsync([
         'node', 'test', 'page', 'edit', 'page-123',
-        '--after', 'block-bbb',
-        '--delete', '2',
+        '--search', 'Para 1',
+        '--replace', 'Replaced',
       ]);
 
-      // Should delete block-ccc and block-ddd (2 blocks after block-bbb)
-      expect(mockClient.delete).toHaveBeenCalledWith('blocks/block-ccc');
-      expect(mockClient.delete).toHaveBeenCalledWith('blocks/block-ddd');
-      expect(mockClient.delete).toHaveBeenCalledTimes(2);
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123/markdown', {
+        type: 'update_content',
+        update_content: {
+          content_updates: [{
+            old_str: 'Para 1',
+            new_str: 'Replaced',
+            replace_all_matches: false,
+          }],
+          allow_deleting_content: false,
+        },
+      });
+      expect(console.log).toHaveBeenCalledWith('✅ Page updated');
     });
 
-    it('should insert blocks at a position', async () => {
-      mockClient.get.mockResolvedValueOnce(existingBlocks);
-      mockClient.patch.mockResolvedValue({
-        results: [{ id: 'new-block-1' }],
-      });
+    it('should replace all matches with --all', async () => {
+      mockClient.patch.mockResolvedValue(mockUpdateResponse);
 
       await program.parseAsync([
         'node', 'test', 'page', 'edit', 'page-123',
-        '--after', 'block-aaa',
-        '--markdown', 'Inserted paragraph',
+        '--search', 'Para',
+        '--replace', 'Line',
+        '--all',
       ]);
 
-      // Should insert after block-aaa
-      expect(mockClient.patch).toHaveBeenCalledWith('blocks/page-123/children', {
-        children: expect.arrayContaining([
-          expect.objectContaining({ type: 'paragraph' }),
-        ]),
-        position: { after_block: 'block-aaa' },
+      expect(mockClient.patch).toHaveBeenCalledWith('pages/page-123/markdown', {
+        type: 'update_content',
+        update_content: {
+          content_updates: [{
+            old_str: 'Para',
+            new_str: 'Line',
+            replace_all_matches: true,
+          }],
+          allow_deleting_content: false,
+        },
       });
-    });
-
-    it('should delete and insert (replace) blocks', async () => {
-      mockClient.get.mockResolvedValueOnce(existingBlocks);
-      mockClient.delete.mockResolvedValue({});
-      mockClient.patch.mockResolvedValue({
-        results: [{ id: 'new-block-1' }],
-      });
-
-      mockFS.set('replace.md', 'Replacement text');
-
-      await program.parseAsync([
-        'node', 'test', 'page', 'edit', 'page-123',
-        '--after', 'block-bbb',
-        '--delete', '1',
-        '--file', 'replace.md',
-      ]);
-
-      // Should delete block-ccc (1 block after block-bbb)
-      expect(mockClient.delete).toHaveBeenCalledWith('blocks/block-ccc');
-      expect(mockClient.delete).toHaveBeenCalledTimes(1);
-
-      // Should insert replacement after block-bbb
-      expect(mockClient.patch).toHaveBeenCalledWith('blocks/page-123/children', {
-        children: expect.arrayContaining([
-          expect.objectContaining({ type: 'paragraph' }),
-        ]),
-        position: { after_block: 'block-bbb' },
-      });
-    });
-
-    it('should use --at index for positioning', async () => {
-      mockClient.get.mockResolvedValueOnce(existingBlocks);
-      mockClient.delete.mockResolvedValue({});
-
-      await program.parseAsync([
-        'node', 'test', 'page', 'edit', 'page-123',
-        '--at', '1',
-        '--delete', '1',
-      ]);
-
-      // At index 1 = block-bbb, should delete it
-      expect(mockClient.delete).toHaveBeenCalledWith('blocks/block-bbb');
-      expect(mockClient.delete).toHaveBeenCalledTimes(1);
     });
 
     it('should show dry run for edit', async () => {
-      mockClient.get.mockResolvedValueOnce(existingBlocks);
+      mockClient.get.mockResolvedValueOnce(existingMarkdown);
 
       await program.parseAsync([
         'node', 'test', 'page', 'edit', 'page-123',
-        '--after', 'block-bbb',
-        '--delete', '1',
-        '--markdown', 'New content',
+        '--search', 'Para 1',
+        '--replace', 'New content',
         '--dry-run',
       ]);
 
-      // Should NOT have deleted or inserted anything
-      expect(mockClient.delete).not.toHaveBeenCalled();
       expect(mockClient.patch).not.toHaveBeenCalled();
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Edit plan'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('1 match'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Dry run'));
     });
 
-    it('should error when block not found for --after', async () => {
-      mockClient.get.mockResolvedValueOnce(existingBlocks);
-
-      await expect(
-        program.parseAsync([
-          'node', 'test', 'page', 'edit', 'page-123',
-          '--after', 'nonexistent-block',
-          '--delete', '1',
-        ])
-      ).rejects.toThrow('process.exit(1)');
-
-      expect(console.error).toHaveBeenCalledWith('Error: Block not found: nonexistent-block');
-    });
-
-    it('should error when no position specified', async () => {
-      mockClient.get.mockResolvedValueOnce(existingBlocks);
-
-      await expect(
-        program.parseAsync([
-          'node', 'test', 'page', 'edit', 'page-123',
-          '--delete', '1',
-        ])
-      ).rejects.toThrow('process.exit(1)');
-
-      expect(console.error).toHaveBeenCalledWith(
-        'Error: Specify a position with --after <block_id> or --at <index>'
-      );
-    });
-
     it('should output JSON with --json', async () => {
-      mockClient.get.mockResolvedValueOnce(existingBlocks);
-      mockClient.delete.mockResolvedValue({});
+      mockClient.patch.mockResolvedValue(mockUpdateResponse);
 
       await program.parseAsync([
         'node', 'test', 'page', 'edit', 'page-123',
-        '--after', 'block-aaa',
-        '--delete', '1',
+        '--search', 'Para 1',
+        '--replace', 'Replaced',
         '--json',
       ]);
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('"deleted": 1')
+        expect.stringContaining('"page_markdown"')
       );
     });
   });

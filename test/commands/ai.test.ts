@@ -302,9 +302,8 @@ describe('AI Command', () => {
 
       await program.parseAsync(['node', 'test', 'ai', 'prompt', 'db-123']);
 
-      expect(mockClient.get).toHaveBeenCalledWith('databases/db-123');
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/ds-456');
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 2 });
+      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', { page_size: 2 });
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Working with Notion Database:'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Task management database'));
     });
@@ -342,7 +341,7 @@ describe('AI Command', () => {
 
       await program.parseAsync(['node', 'test', 'ai', 'prompt', 'db-123', '--examples', '3']);
 
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/ds-456/query', { page_size: 3 });
+      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', { page_size: 3 });
     });
   });
 

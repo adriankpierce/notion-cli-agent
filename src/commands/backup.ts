@@ -5,8 +5,7 @@ import { Command } from 'commander';
 import { getClient } from '../client.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { blocksToMarkdownSync } from '../utils/markdown.js';
-import { fetchAllBlocks, getPageTitle, getDbTitle, getPropertyRawValue } from '../utils/notion-helpers.js';
+import { fetchAllBlocks, readPageMarkdown, getPageTitle, getDbTitle, getPropertyRawValue } from '../utils/notion-helpers.js';
 import { getDatabaseSchema, queryAllPages } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import type { Block, Page, Database } from '../types/notion.js';
@@ -116,17 +115,28 @@ export function registerBackupCommand(program: Command): void {
           
           // Fetch content if requested
           if (options.content) {
-            try {
-              const blocks = await fetchBlocksRecursive(client, entry.id);
-              pageData.content = blocks;
-            } catch (error) {
-              pageData.content_error = (error as Error).message;
+            if (options.format === 'markdown') {
+              // Use native markdown API for markdown format
+              try {
+                const mdResponse = await readPageMarkdown(client, entry.id);
+                pageData.markdownContent = mdResponse.markdown;
+              } catch (error) {
+                pageData.content_error = (error as Error).message;
+              }
+            } else {
+              // Use block tree for JSON format
+              try {
+                const blocks = await fetchBlocksRecursive(client, entry.id);
+                pageData.content = blocks;
+              } catch (error) {
+                pageData.content_error = (error as Error).message;
+              }
             }
           }
-          
+
           // Save based on format
           if (options.format === 'markdown') {
-            const mdContent = generateMarkdown(entry, pageData.content as Block[] | undefined);
+            const mdContent = generateMarkdown(entry, pageData.markdownContent as string | undefined);
             const filePath = path.join(pagesDir, `${filename}.md`);
             fs.writeFileSync(filePath, mdContent);
             totalSize += mdContent.length;
@@ -176,22 +186,22 @@ export function registerBackupCommand(program: Command): void {
     }));
 }
 
-function generateMarkdown(page: Page, blocks?: Block[]): string {
+function generateMarkdown(page: Page, markdownContent?: string): string {
   const title = getPageTitle(page);
   let md = '';
-  
+
   // Frontmatter
   md += '---\n';
   md += `notion_id: "${page.id}"\n`;
   if (page.url) md += `notion_url: "${page.url}"\n`;
   md += `created: ${(page.created_time || '').split('T')[0]}\n`;
   md += `updated: ${(page.last_edited_time || '').split('T')[0]}\n`;
-  
+
   // Properties
   for (const [name, value] of Object.entries(page.properties)) {
     const prop = value as { type: string; [key: string]: unknown };
     if (prop.type === 'title') continue;
-    
+
     const val = getPropertyRawValue(prop);
     if (val !== null && val !== '') {
       const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -205,15 +215,14 @@ function generateMarkdown(page: Page, blocks?: Block[]): string {
       }
     }
   }
-  
+
   md += '---\n\n';
   md += `# ${title}\n\n`;
-  
-  // Content — use shared blocksToMarkdownSync with rich text annotations
-  if (blocks) {
-    md += blocksToMarkdownSync(blocks);
+
+  if (markdownContent) {
+    md += markdownContent;
   }
-  
+
   return md;
 }
 

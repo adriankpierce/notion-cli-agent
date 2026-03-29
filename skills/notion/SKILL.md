@@ -1,9 +1,9 @@
 ---
-name: notion-cli-agent
-description: Use the local Notion CLI (notion-cli-agent) to query, create, update, and manage Notion pages and databases via shell. Use when interacting with Notion workspaces, querying databases, creating or updating pages, managing tasks, reading content blocks, or running bulk/batch operations on Notion data. Prefer over Notion MCP or API calls.
+name: notion
+description: Use the local Notion CLI to query, create, read, edit, and manage Notion pages and databases via shell. Use when interacting with Notion workspaces, querying databases, creating or updating pages, managing tasks, or running bulk/batch operations on Notion data. Prefer over Notion MCP or API calls.
 ---
 
-# notion-cli-agent
+# notion
 
 Local CLI for full Notion access.
 
@@ -15,27 +15,47 @@ notion <args>   # globally installed via npm
 
 Auth: `NOTION_TOKEN` env var, or `~/.config/notion/api_key`.
 
-## Load workspace state first
+## Core Markdown Operations
 
-If `~/.config/notion/workspace.json` exists, read it to get database IDs — no need to run `inspect` every time:
+Three commands map 1:1 to Notion's native markdown API:
+
+| Operation | Command | API |
+|-----------|---------|-----|
+| **Create** | `notion page create --parent <id> --file content.md` | `POST /v1/pages` with `markdown` body |
+| **Read** | `notion page read <page_id>` | `GET /v1/pages/{id}/markdown` |
+| **Update** | `notion page edit <page_id> --search "old" --replace "new"` | `PATCH /v1/pages/{id}/markdown` (`update_content`) |
+
+### Create a page with markdown
 
 ```bash
-cat ~/.config/notion/workspace.json 2>/dev/null
-# extract: .databases.tasks.id, .databases.projects.id, etc.
+notion page create --parent <db_id> --title "Meeting Notes" --file notes.md
+notion page create --parent <db_id> --title "Task" --prop "Status:status=Todo" --prop "Priority:select=High"
+notion page create --parent <page_id> --parent-type page --title "Subpage" --file doc.md
 ```
 
-If the file is missing, suggest the user run the **notion-onboarding** skill first.
+If `--title` is omitted, Notion extracts the first `# h1` heading as the page title.
 
-## Agent Workflow
+### Read page content as markdown
 
-1. **Load state** (above) or `notion inspect ws --compact` / `notion inspect ws --json` to discover databases
-2. **Understand schema** — `notion inspect context <db_id>` and `notion inspect schema <db_id> --llm`
-3. **Query deterministically first** — prefer `search --exact --db --first`, `db query --title`, or `--llm` over fuzzy workspace-wide search when you know the target DB
-4. **Write** with `--dry-run` first on bulk/batch ops, then confirm with user
+```bash
+notion page read <page_id>                # markdown to stdout
+notion page read <page_id> -o page.md     # save to file
+notion page read <page_id> --no-title     # omit the # Title heading
+notion page read <page_id> --json         # raw block JSON instead
+```
 
-## Core Commands
+### Edit page content (search-and-replace)
 
-### Discover
+```bash
+notion page edit <page_id> --search "old text" --replace "new text"
+notion page edit <page_id> --search "typo" --replace "fixed" --all    # replace all matches
+notion page edit <page_id> --search "old" --replace "new" --dry-run   # preview
+```
+
+Search is exact and case-sensitive. Must match exactly once unless `--all` is used.
+
+## Discover
+
 ```bash
 notion inspect ws --compact                     # all databases, names + ids
 notion inspect ws --json                        # full raw inventory
@@ -44,11 +64,13 @@ notion inspect context <db_id>                  # workflow context + examples
 notion ai prompt <db_id>                        # DB-specific agent instructions
 ```
 
-### Query
+## Query
+
 ```bash
 # Exact lookup in a known DB (deterministic — uses database query API)
 notion db query <db_id> --title "Known Page" --json
 notion db query <db_id> --limit 20 --llm                   # compact output
+notion db query <db_id> --sort "Created time" --sort-dir desc --limit 5 --llm  # recent first
 
 # Fuzzy search (workspace-wide, best-effort — Notion may miss long titles)
 notion search "keyword" --limit 10
@@ -62,7 +84,8 @@ notion find "high priority" -d <db_id> --explain           # preview filter, don
 
 **For exact lookup by title in a known DB, always use `db query --title` — not `search --exact`.** Notion's search API is fuzzy and may miss pages with long or common-word titles.
 
-### Read pages
+## Read page metadata
+
 ```bash
 notion page get <page_id>                       # properties
 notion page get <page_id> --content             # + content blocks
@@ -71,23 +94,17 @@ notion ai summarize <page_id>                   # concise summary
 notion ai extract <page_id> --schema "email,phone,date"
 ```
 
-### Write pages
+## Update page properties
+
 ```bash
-notion page create --parent <db_id> --title "Task Name"
-notion page create --parent <db_id> --title "Task" --prop "Status:status=Todo" --prop "Priority:select=High"
 notion page update <page_id> --prop "Status:status=Done"
+notion page update <page_id> --title "New Title"
 notion page update <page_id> --clear-prop "Assignee"       # type-aware clear
-notion page update <page_id> --clear-prop "Tags" --clear-prop "Deadline"
+notion page update <page_id> --icon 🚀
 ```
 
-### Add blocks
-```bash
-notion block append <page_id> --text "Paragraph"
-notion block append <page_id> --heading2 "Section" --bullet "Item 1" --bullet "Item 2"
-notion block append <page_id> --todo "Action item"
-```
+## Batch (minimize tool calls)
 
-### Batch (minimize tool calls)
 ```bash
 notion batch --dry-run --data '[
   {"op":"get","type":"page","id":"<page_id>"},
@@ -97,7 +114,8 @@ notion batch --dry-run --data '[
 notion batch --llm --data '[...]'               # execute
 ```
 
-### Bulk & maintenance
+## Bulk & maintenance
+
 ```bash
 notion bulk update <db_id> --where "Status=Todo" --set "Status=In Progress" --dry-run
 notion stats overview <db_id>
@@ -108,9 +126,19 @@ notion validate check <db_id> --check-dates --check-stale 30
 
 | Flag | Use for |
 |------|---------|
-| `--llm` | Compact, structured output for agents (`search`, `db query`, `find`, `batch`, `inspect schema/context`, `stats overview`, `relations backlinks`) |
+| `--llm` | Compact, structured output for agents |
 | `--json` / `-j` | Raw JSON for parsing |
 | (default) | Human-readable |
+
+## Property type hints for --prop
+
+Auto-detection treats plain strings as `select`. Use `Key:type=Value` to force a type:
+
+```bash
+notion page update <id> --prop "Status:status=Done"    # status, not select
+notion page update <id> --prop "Notes:rich_text=Text"   # rich_text, not select
+notion page update <id> --prop "Owner:people=<user_id>" # people
+```
 
 ## Property type filters
 
@@ -126,22 +154,10 @@ Types: `status` · `select` · `multi_select` · `number` · `date` · `checkbox
 
 See `references/filters.md` for full operator reference.
 
-## Property type hints for --prop
-
-Auto-detection treats plain strings as `select`. Use `Key:type=Value` to force a type:
-
-```bash
-notion page update <id> --prop "Status:status=Done"    # status, not select
-notion page update <id> --prop "Notes:rich_text=Text"   # rich_text, not select
-notion page update <id> --prop "Owner:people=<user_id>" # people
-```
-
 ## Rules
 
 - Property values are usually **case-sensitive** — verify exact status/select values with `inspect context`
-- Property names are matched more flexibly in `0.10.0` (`resolvePropertyName()` is case-insensitive and whitespace-tolerant), but still prefer the real schema labels for reliability
-- Title property name varies per DB (`"Name"`, `"Título"`, `"Task"` — check state or schema)
-- Prefer `db query --title "..."` or `search --db <id> --exact --first` when you know the DB; avoid fuzzy `search` for operational updates
+- Title property name varies per DB (`"Name"`, `"Título"`, `"Task"` — check schema)
 - Use `--clear-prop` instead of fake empty values like `Owner:people=` or `Tags=`
 - `--dry-run` before any bulk/batch write
 - Confirm with user before destructive bulk operations
