@@ -80,7 +80,7 @@ describe('Backup Command', () => {
       expect(meta.databaseId).toBe('db-123');
       expect(meta.entriesCount).toBe(1);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Backup complete!'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Backup complete!'));
     });
 
     it('should save pages in JSON format by default', async () => {

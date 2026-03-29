@@ -129,7 +129,7 @@ export function registerDatabasesCommand(program: Command): void {
 
       for (const item of result.results) {
         const title = getItemTitle(item);
-        console.log(`📄 ${title}`);
+        console.log(`${title}`);
         console.log(`   ID: ${item.id}`);
       }
 
@@ -179,7 +179,7 @@ export function registerDatabasesCommand(program: Command): void {
       if (options.json) {
         console.log(formatOutput(db));
       } else {
-        console.log('✅ Database created');
+        console.log('Database created');
         console.log('ID:', (db as { id: string }).id);
         console.log('URL:', (db as { url: string }).url);
       }
@@ -224,7 +224,7 @@ export function registerDatabasesCommand(program: Command): void {
       if (options.json) {
         console.log(formatOutput(db));
       } else {
-        console.log('✅ Database updated');
+        console.log('Database updated');
       }
     }));
 }

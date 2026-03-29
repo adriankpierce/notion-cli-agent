@@ -246,7 +246,7 @@ describe('Format Utilities', () => {
         },
       };
       const result = formatBlock(block);
-      expect(result).toContain('🖼');
+      expect(result).toContain('[img]');
       expect(result).toContain('https://example.com/image.jpg');
     });
 
@@ -259,7 +259,7 @@ describe('Format Utilities', () => {
         },
       };
       const result = formatBlock(block);
-      expect(result).toContain('🖼');
+      expect(result).toContain('[img]');
       expect(result).toContain('My Image');
     });
 
@@ -272,7 +272,7 @@ describe('Format Utilities', () => {
         },
       };
       const result = formatBlock(block);
-      expect(result).toContain('🎥');
+      expect(result).toContain('[vid]');
       expect(result).toContain('https://example.com/video.mp4');
     });
 
@@ -285,7 +285,7 @@ describe('Format Utilities', () => {
         },
       };
       const result = formatBlock(block);
-      expect(result).toContain('📎');
+      expect(result).toContain('[file]');
       expect(result).toContain('https://example.com/file.pdf');
     });
 
@@ -298,7 +298,7 @@ describe('Format Utilities', () => {
         },
       };
       const result = formatBlock(block);
-      expect(result).toContain('📄');
+      expect(result).toContain('[pdf]');
       expect(result).toContain('https://example.com/doc.pdf');
     });
 
@@ -311,7 +311,7 @@ describe('Format Utilities', () => {
         },
       };
       const result = formatBlock(block);
-      expect(result).toContain('🔗');
+      expect(result).toContain('[embed]');
       expect(result).toContain('https://example.com/embed');
     });
 
@@ -324,7 +324,7 @@ describe('Format Utilities', () => {
         },
       };
       const result = formatBlock(block);
-      expect(result).toContain('🔖');
+      expect(result).toContain('[bm]');
       expect(result).toContain('https://example.com');
     });
 

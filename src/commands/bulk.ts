@@ -149,31 +149,31 @@ export function registerBulkCommand(program: Command): void {
         }
         
         if (options.dryRun) {
-          console.log('\n🔍 Dry run - no changes made');
+          console.log('\nDry run - no changes made');
           return;
         }
-        
+
         if (!options.yes) {
           console.log('\nUse --yes to execute, or --dry-run to preview');
           return;
         }
-        
+
         // Execute updates
         let updated = 0;
         let failed = 0;
-        
+
         for (const page of result.results) {
           try {
             await client.patch(`pages/${page.id}`, { properties: setProperties });
             updated++;
-            process.stdout.write(`\r✅ Updated ${updated}/${result.results.length}...`);
+            process.stdout.write(`\rUpdated ${updated}/${result.results.length}...`);
           } catch (error) {
             failed++;
-            console.error(`\n❌ Failed to update ${page.id}: ${(error as Error).message}`);
+            console.error(`\nError: Failed to update ${page.id}: ${(error as Error).message}`);
           }
         }
-        
-        console.log(`\n\n✅ Updated ${updated} entries${failed > 0 ? `, ${failed} failed` : ''}`);
+
+        console.log(`\n\nUpdated ${updated} entries${failed > 0 ? `, ${failed} failed` : ''}`);
     }));
 
   // Bulk archive
@@ -223,31 +223,31 @@ export function registerBulkCommand(program: Command): void {
         }
         
         if (options.dryRun) {
-          console.log('\n🔍 Dry run - no changes made');
+          console.log('\nDry run - no changes made');
           return;
         }
-        
+
         if (!options.yes) {
           console.log('\nUse --yes to execute, or --dry-run to preview');
           return;
         }
-        
+
         // Execute archival
         let archived = 0;
         let failed = 0;
-        
+
         for (const page of result.results) {
           try {
             await client.patch(`pages/${page.id}`, buildTrashPayload(true));
             archived++;
-            process.stdout.write(`\r🗑️ Archived ${archived}/${result.results.length}...`);
+            process.stdout.write(`\rArchived ${archived}/${result.results.length}...`);
           } catch (error) {
             failed++;
-            console.error(`\n❌ Failed to archive ${page.id}: ${(error as Error).message}`);
+            console.error(`\nError: Failed to archive ${page.id}: ${(error as Error).message}`);
           }
         }
-        
-        console.log(`\n\n✅ Archived ${archived} entries${failed > 0 ? `, ${failed} failed` : ''}`);
+
+        console.log(`\n\nArchived ${archived} entries${failed > 0 ? `, ${failed} failed` : ''}`);
     }));
 
   // Bulk delete (really archive, Notion doesn't have true delete)

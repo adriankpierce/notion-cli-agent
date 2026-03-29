@@ -88,7 +88,7 @@ describe('Export Command', () => {
       const content = mockFS.get('/tmp/page.md') || '';
       expect(content).toContain('# Test Page');
       expect(content).toContain('# Introduction');
-      expect(console.log).toHaveBeenCalledWith('✅ Exported to /tmp/page.md');
+      expect(console.log).toHaveBeenCalledWith('Exported to /tmp/page.md');
     });
 
     it('should include frontmatter with --obsidian', async () => {
@@ -177,7 +177,7 @@ describe('Export Command', () => {
 
       expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', { page_size: 100 });
       expect(mockFS.has('/vault/Test Page.md')).toBe(true);
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Exported 2 pages'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Exported 2 pages'));
     });
 
     it('should create subfolder when --folder is specified', async () => {
@@ -263,7 +263,7 @@ describe('Export Command', () => {
       await program.parseAsync(['node', 'test', 'export', 'database', 'db-123', '--vault', '/vault']);
 
       expect(mockClient.post).toHaveBeenCalledTimes(2);
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Exported 2 pages'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Exported 2 pages'));
     });
 
     it('should sanitize filenames to avoid filesystem issues', async () => {
@@ -311,7 +311,7 @@ describe('Export Command', () => {
 
       const pageContent = mockFS.get('/vault/Test Page.md') || '';
       expect(pageContent).toContain('<!-- Failed to fetch content -->');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Exported 1 pages'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Exported 1 pages'));
     });
   });
 

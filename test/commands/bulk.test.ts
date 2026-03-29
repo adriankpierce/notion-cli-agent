@@ -51,7 +51,7 @@ describe('Bulk Command', () => {
         page_size: 100,
       }));
       expect(mockClient.patch).toHaveBeenCalledTimes(2);
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Updated 2 entries'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Updated 2 entries'));
     });
 
     it('should show preview without --yes flag', async () => {
@@ -179,7 +179,7 @@ describe('Bulk Command', () => {
       ]);
 
       expect(mockClient.patch).toHaveBeenCalledTimes(3);
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Updated 2 entries, 1 failed'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Updated 2 entries, 1 failed'));
     });
 
     it('should handle invalid where clause', async () => {
@@ -251,7 +251,7 @@ describe('Bulk Command', () => {
       expect(mockClient.patch).toHaveBeenCalledTimes(2);
       expect(mockClient.patch).toHaveBeenCalledWith('pages/1', { in_trash: true });
       expect(mockClient.patch).toHaveBeenCalledWith('pages/2', { in_trash: true });
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Archived 2 entries'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Archived 2 entries'));
     });
 
     it('should show preview without --yes flag', async () => {
@@ -297,7 +297,7 @@ describe('Bulk Command', () => {
         '--yes',
       ]);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Archived 1 entries, 1 failed'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Archived 1 entries, 1 failed'));
     });
   });
 

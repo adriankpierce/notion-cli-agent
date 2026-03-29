@@ -137,9 +137,9 @@ export function registerSearchCommand(program: Command): void {
 
       for (const item of items) {
         const isPage = item.object === 'page';
-        const icon = isPage ? '📄' : '🗄️';
+        const label = isPage ? '[page]' : '[db]';
         const title = getItemTitle(item);
-        console.log(`${icon} ${title}`);
+        console.log(`${label} ${title}`);
         console.log(`   ID: ${item.id}`);
         if (item.url) console.log(`   URL: ${item.url}`);
         console.log('');

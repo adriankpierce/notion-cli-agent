@@ -107,7 +107,7 @@ export function registerExportCommand(program: Command): void {
       // Output
       if (options.output) {
         fs.writeFileSync(options.output, output);
-        console.log(`✅ Exported to ${options.output}`);
+        console.log(`Exported to ${options.output}`);
       } else {
         console.log(output);
       }
@@ -141,7 +141,7 @@ export function registerExportCommand(program: Command): void {
         const pages = await queryAllPages(client, databaseId, {
           filter: options.filter ? JSON.parse(options.filter) : undefined,
           limit: options.limit ? parseInt(options.limit, 10) : undefined,
-          onProgress: (n) => process.stdout.write(`\r📄 Fetching ${n} pages...`),
+          onProgress: (n) => process.stdout.write(`\rFetching ${n} pages...`),
         });
 
         let exported = 0;
@@ -164,9 +164,9 @@ export function registerExportCommand(program: Command): void {
 
           fs.writeFileSync(filepath, content);
           exported++;
-          process.stdout.write(`\r📄 Exported ${exported}/${pages.length} pages...`);
+          process.stdout.write(`\rExported ${exported}/${pages.length} pages...`);
         }
 
-        console.log(`\n✅ Exported ${exported} pages to ${outputFolder}`);
+        console.log(`\nExported ${exported} pages to ${outputFolder}`);
     }));
 }

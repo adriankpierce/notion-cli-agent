@@ -119,7 +119,7 @@ export function registerTemplateCommand(program: Command): void {
         const blockCount = content.blocks?.length || 0;
         const desc = content.description || '';
         
-        console.log(`📄 ${name}`);
+        console.log(`${name}`);
         console.log(`   Blocks: ${blockCount}`);
         if (desc) console.log(`   Description: ${desc}`);
         console.log('');
@@ -176,7 +176,7 @@ export function registerTemplateCommand(program: Command): void {
         
         fs.writeFileSync(templatePath, JSON.stringify(templateData, null, 2));
         
-        console.log(`\n✅ Template saved: ${options.name}`);
+        console.log(`\nTemplate saved: ${options.name}`);
         console.log(`   Location: ${templatePath}`);
     }));
 
@@ -278,7 +278,7 @@ export function registerTemplateCommand(program: Command): void {
         
         const page = await client.post('pages', pageData) as { id: string; url: string };
         
-        console.log(`\n✅ Page created from template "${templateName}"`);
+        console.log(`\nPage created from template "${templateName}"`);
         console.log(`   ID: ${page.id}`);
         console.log(`   URL: ${page.url}`);
 
@@ -302,7 +302,7 @@ export function registerTemplateCommand(program: Command): void {
       }
       
       fs.unlinkSync(templatePath);
-      console.log(`✅ Template "${templateName}" deleted`);
+      console.log(`Template "${templateName}" deleted`);
     });
 
   // Show template details
@@ -327,7 +327,7 @@ export function registerTemplateCommand(program: Command): void {
         return;
       }
       
-      console.log(`📄 Template: ${template.name}\n`);
+      console.log(`Template: ${template.name}\n`);
       if (template.description) {
         console.log(`Description: ${template.description}`);
       }

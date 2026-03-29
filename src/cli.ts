@@ -44,12 +44,13 @@ import { registerBackupCommand } from './commands/backup.js';
 import { registerRelationsCommand } from './commands/relations.js';
 import { registerHelpAgentCommand } from './commands/help-agent.js';
 import { registerSkillCommand } from './commands/skill.js';
+import { registerFileCommand } from './commands/file.js';
 
 const program = new Command();
 
 program
   .name('notion')
-  .description('Full-featured CLI for Notion API - built for humans AND AI agents\n\n  💡 AI Agents: Run "notion quickstart" for a complete quick reference guide')
+  .description('Full-featured CLI for Notion API - built for humans AND AI agents\n\n  AI Agents: Run "notion quickstart" for a complete quick reference guide')
   .version(version)
   .option('--token <token>', 'Notion API token (or set NOTION_TOKEN env var)')
   .option('--data-source-id <id>', 'Explicit data source ID for multi-data-source databases')
@@ -91,6 +92,7 @@ registerBackupCommand(program);
 registerRelationsCommand(program);
 registerHelpAgentCommand(program);
 registerSkillCommand(program);
+registerFileCommand(program);
 
 // Raw API command for advanced users
 program

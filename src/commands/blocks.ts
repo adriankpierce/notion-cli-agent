@@ -135,7 +135,7 @@ export function registerBlocksCommand(program: Command): void {
       if (options.json) {
         console.log(formatOutput(result));
       } else {
-        console.log(`✅ Added ${children.length} block(s)`);
+        console.log(`Added ${children.length} block(s)`);
       }
     }));
 
@@ -170,7 +170,7 @@ export function registerBlocksCommand(program: Command): void {
       if (options.json) {
         console.log(formatOutput(result));
       } else {
-        console.log('✅ Block updated');
+        console.log('Block updated');
       }
     }));
 
@@ -181,7 +181,7 @@ export function registerBlocksCommand(program: Command): void {
     .action(withErrorHandler(async (blockId: string) => {
       const client = getClient();
       await client.delete(`blocks/${blockId}`);
-      console.log('✅ Block deleted');
+      console.log('Block deleted');
     }));
 }
 

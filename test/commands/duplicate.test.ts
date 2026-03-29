@@ -51,7 +51,7 @@ describe('Duplicate Command', () => {
           }),
         }),
       }));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Page duplicated'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Page duplicated'));
     });
 
     it('should use custom title with --title', async () => {
@@ -266,7 +266,7 @@ describe('Duplicate Command', () => {
         ]),
         properties: expect.any(Object),
       }));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Database schema cloned'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Database schema cloned'));
     });
 
     it('should use custom title with --title', async () => {
@@ -403,7 +403,7 @@ describe('Duplicate Command', () => {
 
       await program.parseAsync(['node', 'test', 'duplicate', 'schema', 'db-123', '--to', 'page-parent']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('⚠️ Skipping relation property: Project'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Warning: Skipping relation property: Project'));
       expect(mockClient.post).toHaveBeenCalledWith('databases', expect.objectContaining({
         properties: expect.not.objectContaining({
           Project: expect.anything(),
@@ -477,7 +477,7 @@ describe('Duplicate Command', () => {
       expect(mockClient.post).toHaveBeenCalledWith('pages', expect.objectContaining({
         parent: { database_id: 'new-db' },
       }));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Database cloned'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Database cloned'));
     });
 
     it('should show dry run preview with --dry-run', async () => {
@@ -486,7 +486,7 @@ describe('Duplicate Command', () => {
 
       await program.parseAsync(['node', 'test', 'duplicate', 'database', 'db-123', '--to', 'page-parent', '--dry-run']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🔍 Dry run'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Dry run'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Entries: 2'));
       // Should not create database or pages
       expect(mockClient.post).toHaveBeenCalledTimes(1); // Only query, no create

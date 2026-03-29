@@ -357,7 +357,7 @@ describe('Find Command', () => {
       await program.parseAsync(['node', 'test', 'find', 'done', '--database', 'db-123']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Found 1 results'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('📄'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Task'));
     });
   });
 

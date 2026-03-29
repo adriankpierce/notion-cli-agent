@@ -94,6 +94,17 @@ notion ai summarize <page_id>                   # concise summary
 notion ai extract <page_id> --schema "email,phone,date"
 ```
 
+## Upload files to pages
+
+```bash
+notion file upload <page_id> photo.jpg                          # local file
+notion file upload <page_id> --url https://example.com/doc.pdf  # from URL
+notion file upload <page_id> photo.jpg --caption "Vacation"     # with caption
+notion file upload <page_id> photo.jpg --position top           # attach at top
+```
+
+Block type is auto-detected from extension (image, video, audio, pdf, or generic file). After upload, the file appears in `page read` markdown output and can be moved with `page edit`.
+
 ## Update page properties
 
 ```bash

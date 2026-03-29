@@ -153,7 +153,7 @@ export function registerDuplicateCommand(program: Command): void {
           }
         }
         
-        console.log(`\n✅ Page duplicated`);
+        console.log(`\nPage duplicated`);
         console.log(`   Original: ${sourceTitle}`);
         console.log(`   New: ${newTitle}`);
         console.log(`   ID: ${newPage.id}`);
@@ -197,7 +197,7 @@ export function registerDuplicateCommand(program: Command): void {
           
           // Skip relations to other DBs (would need special handling)
           if (schema.type === 'relation') {
-            console.log(`   ⚠️ Skipping relation property: ${name}`);
+            console.log(`   Warning: Skipping relation property: ${name}`);
             continue;
           }
           
@@ -248,7 +248,7 @@ export function registerDuplicateCommand(program: Command): void {
               propConfig.phone_number = {};
               break;
             default:
-              console.log(`   ⚠️ Skipping unsupported property type: ${name} (${schema.type})`);
+              console.log(`   Warning: Skipping unsupported property type: ${name} (${schema.type})`);
               continue;
           }
           
@@ -263,7 +263,7 @@ export function registerDuplicateCommand(program: Command): void {
           properties: newProperties,
         }) as Database;
         
-        console.log(`\n✅ Database schema cloned`);
+        console.log(`\nDatabase schema cloned`);
         console.log(`   Original: ${sourceTitle}`);
         console.log(`   New: ${newTitle}`);
         console.log(`   ID: ${newDb.id}`);
@@ -299,7 +299,7 @@ export function registerDuplicateCommand(program: Command): void {
         console.log(`\rFound ${entries.length} entries to clone.      `);
         
         if (options.dryRun) {
-          console.log('\n🔍 Dry run - would clone:');
+          console.log('\nDry run - would clone:');
           console.log(`   Database: ${sourceTitle}`);
           console.log(`   Entries: ${entries.length}`);
           console.log(`   Target: page ${options.to}`);
@@ -389,14 +389,14 @@ export function registerDuplicateCommand(program: Command): void {
             }
             
             cloned++;
-            process.stdout.write(`\r📄 Cloned ${cloned}/${entries.length}...`);
+            process.stdout.write(`\rCloned ${cloned}/${entries.length}...`);
           } catch (error) {
             failed++;
-            console.error(`\n❌ Failed: ${(error as Error).message}`);
+            console.error(`\nError: Failed: ${(error as Error).message}`);
           }
         }
         
-        console.log(`\n\n✅ Database cloned`);
+        console.log(`\n\nDatabase cloned`);
         console.log(`   Entries: ${cloned} cloned${failed > 0 ? `, ${failed} failed` : ''}`);
         console.log(`   New database ID: ${newDb.id}`);
     }));

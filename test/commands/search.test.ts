@@ -170,7 +170,7 @@ describe('Search Command', () => {
 
       await program.parseAsync(['node', 'test', 'search']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('📄'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[page]'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('My Page'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('ID: page-1'));
     });
@@ -184,7 +184,7 @@ describe('Search Command', () => {
 
       await program.parseAsync(['node', 'test', 'search']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🗄️'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[db]'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('My Database'));
     });
 

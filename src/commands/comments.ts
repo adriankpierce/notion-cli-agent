@@ -112,7 +112,7 @@ export function registerCommentsCommand(program: Command): void {
       if (options.json) {
         console.log(formatOutput(comment));
       } else {
-        console.log('✅ Comment created');
+        console.log('Comment created');
         console.log('ID:', comment.id);
         console.log('Discussion:', comment.discussion_id);
       }

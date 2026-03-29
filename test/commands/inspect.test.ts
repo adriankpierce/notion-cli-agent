@@ -124,7 +124,7 @@ describe('Inspect Command', () => {
 
       await program.parseAsync(['node', 'test', 'inspect', 'workspace', '--compact']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[multi-source]'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Multi Source DB'));
     });
 
     it('should continue listing when a database has no properties', async () => {

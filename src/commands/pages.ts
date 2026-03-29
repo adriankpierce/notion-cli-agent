@@ -57,14 +57,20 @@ export function registerPagesCommand(program: Command): void {
     .option('--title-prop <name>', 'Name of title property (auto-detected if not set)')
     .option('-p, --prop <key=value...>', 'Set property (can be used multiple times)')
     .option('-f, --file <path>', 'Markdown content from file')
-    .option('--icon <emoji>', 'Set page icon (emoji character, e.g. 📝)')
+    .option('--icon <emoji>', 'Set page icon (emoji character)')
     .option('-j, --json', 'Output raw JSON')
     .action(withErrorHandler(async (options) => {
       const client = getClient();
 
-      const parent = options.parentType === 'page'
-          ? { page_id: options.parent }
-          : { database_id: options.parent };
+      // Detect whether the ID is a database_id or data_source_id.
+      // Users may pass either (inspect ws shows data_source IDs, URLs contain database IDs).
+      let parent: Record<string, string>;
+      if (options.parentType === 'page') {
+        parent = { page_id: options.parent };
+      } else {
+        // Try data_source_id first (what search/inspect return), fall back to database_id
+        parent = { data_source_id: options.parent };
+      }
 
         const properties: Record<string, unknown> = {};
 
@@ -119,12 +125,23 @@ export function registerPagesCommand(program: Command): void {
           body.markdown = fs.readFileSync(options.file, 'utf-8');
         }
 
-        const page = await client.post('pages', body);
+        let page;
+        try {
+          page = await client.post('pages', body);
+        } catch (err) {
+          // If data_source_id failed, retry with database_id
+          if (options.parentType !== 'page' && (err as Error).message.includes('404')) {
+            body.parent = { database_id: options.parent };
+            page = await client.post('pages', body);
+          } else {
+            throw err;
+          }
+        }
 
         if (options.json) {
           console.log(formatOutput(page));
         } else {
-          console.log('✅ Page created');
+          console.log('Page created');
           console.log('ID:', (page as { id: string }).id);
           console.log('URL:', (page as { url: string }).url);
         }
@@ -140,7 +157,7 @@ export function registerPagesCommand(program: Command): void {
     .option('--clear-prop <name...>', 'Clear a property (type-aware, e.g., --clear-prop "Assignee")')
     .option('--archive', 'Archive the page')
     .option('--unarchive', 'Unarchive the page')
-    .option('--icon <emoji>', 'Set page icon (emoji character, e.g. 📝)')
+    .option('--icon <emoji>', 'Set page icon (emoji character)')
     .option('-j, --json', 'Output raw JSON')
     .action(withErrorHandler(async (pageId: string, options) => {
       const client = getClient();
@@ -228,7 +245,7 @@ export function registerPagesCommand(program: Command): void {
         if (options.json) {
           console.log(formatOutput(page));
         } else {
-          console.log('✅ Page updated');
+          console.log('Page updated');
           console.log('ID:', (page as { id: string }).id);
         }
     }));
@@ -240,7 +257,7 @@ export function registerPagesCommand(program: Command): void {
     .action(withErrorHandler(async (pageId: string) => {
       const client = getClient();
       await client.patch(`pages/${pageId}`, buildTrashPayload(true));
-      console.log('✅ Page archived');
+      console.log('Page archived');
     }));
 
   // Get page property
@@ -326,7 +343,7 @@ export function registerPagesCommand(program: Command): void {
             console.log(`  Search:  "${options.search.slice(0, 80)}${options.search.length > 80 ? '...' : ''}"`);
             console.log(`  Replace: "${options.replace.slice(0, 80)}${options.replace.length > 80 ? '...' : ''}"`);
             if (matches > 1 && !options.all) {
-              console.log(`  ⚠️  Multiple matches found — use --all to replace all, or be more specific`);
+              console.log(`  Warning: Multiple matches found — use --all to replace all, or be more specific`);
             }
           }
           console.log('\nDry run - no changes made');
@@ -344,7 +361,7 @@ export function registerPagesCommand(program: Command): void {
         if (options.json) {
           console.log(formatOutput(response));
         } else {
-          console.log('✅ Page updated');
+          console.log('Page updated');
         }
     }));
 }

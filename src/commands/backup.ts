@@ -60,7 +60,7 @@ export function registerBackupCommand(program: Command): void {
         // Save schema
         const schemaPath = path.join(outputDir, 'schema.json');
         fs.writeFileSync(schemaPath, JSON.stringify(db, null, 2));
-        console.log(`✅ Schema saved to ${schemaPath}`);
+        console.log(`Schema saved to ${schemaPath}`);
         
         // Check for incremental backup
         let lastBackupTime: Date | null = null;
@@ -69,7 +69,7 @@ export function registerBackupCommand(program: Command): void {
         if (options.incremental && fs.existsSync(metaPath)) {
           const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
           lastBackupTime = new Date(meta.lastBackup);
-          console.log(`📅 Incremental backup since ${lastBackupTime.toISOString()}`);
+          console.log(`Incremental backup since ${lastBackupTime.toISOString()}`);
         }
         
         // Query entries
@@ -148,7 +148,7 @@ export function registerBackupCommand(program: Command): void {
           }
           
           backed++;
-          process.stdout.write(`\r💾 Backed up ${backed}/${entries.length}...`);
+          process.stdout.write(`\rBacked up ${backed}/${entries.length}...`);
         }
         
         // Save index
@@ -174,7 +174,7 @@ export function registerBackupCommand(program: Command): void {
         
         // Summary
         const sizeMb = (totalSize / (1024 * 1024)).toFixed(2);
-        console.log(`\n\n✅ Backup complete!`);
+        console.log(`\n\nBackup complete!`);
         console.log(`   Database: ${dbTitle}`);
         console.log(`   Entries: ${backed}`);
         console.log(`   Size: ${sizeMb} MB`);

@@ -29,7 +29,7 @@ export function registerRelationsCommand(program: Command): void {
       const targetPage = await client.get(`pages/${pageId}`) as Page;
         const targetTitle = getPageTitle(targetPage);
         
-        console.log(`🔍 Finding backlinks to: ${targetTitle}\n`);
+        console.log(`Finding backlinks to: ${targetTitle}\n`);
         
         // Find the parent database
         if (!isParentDatabase(targetPage.parent) || !getParentDatabaseId(targetPage.parent)) {
@@ -166,7 +166,7 @@ export function registerRelationsCommand(program: Command): void {
         console.log(`Found ${backlinks.length} backlinks:\n`);
         
         if (relationLinks.length > 0) {
-          console.log('📎 Direct Relations:');
+          console.log('Direct Relations:');
           for (const b of relationLinks) {
             console.log(`   ${getPageTitle(b.page)}`);
             console.log(`   └─ via property: ${b.property}`);
@@ -176,7 +176,7 @@ export function registerRelationsCommand(program: Command): void {
         }
         
         if (mentionLinks.length > 0) {
-          console.log('📝 Potential Mentions:');
+          console.log('Potential Mentions:');
           for (const b of mentionLinks.slice(0, 10)) {
             console.log(`   ${getPageTitle(b.page)}`);
             console.log(`      ID: ${b.page.id}`);
@@ -233,7 +233,7 @@ export function registerRelationsCommand(program: Command): void {
           },
         });
         
-        console.log(`✅ Linked: ${sourceTitle} → ${targetTitle}`);
+        console.log(`Linked: ${sourceTitle} → ${targetTitle}`);
         console.log(`   Property: ${options.property}`);
         
         // Bidirectional linking
@@ -254,10 +254,10 @@ export function registerRelationsCommand(program: Command): void {
                 },
               });
               
-              console.log(`✅ Linked: ${targetTitle} → ${sourceTitle} (bidirectional)`);
+              console.log(`Linked: ${targetTitle} → ${sourceTitle} (bidirectional)`);
             }
           } else {
-            console.log(`⚠️ Could not create bidirectional link (property not found on target)`);
+            console.log(`Warning: Could not create bidirectional link (property not found on target)`);
           }
         }
 
@@ -299,7 +299,7 @@ export function registerRelationsCommand(program: Command): void {
           },
         });
         
-        console.log(`✅ Unlinked: ${sourceTitle} ✕ ${targetTitle}`);
+        console.log(`Unlinked: ${sourceTitle} ✕ ${targetTitle}`);
         
         // Bidirectional unlinking
         if (options.bidirectional) {
@@ -317,7 +317,7 @@ export function registerRelationsCommand(program: Command): void {
               },
             });
             
-            console.log(`✅ Unlinked: ${targetTitle} ✕ ${sourceTitle} (bidirectional)`);
+            console.log(`Unlinked: ${targetTitle} ✕ ${sourceTitle} (bidirectional)`);
           }
         }
 
@@ -396,11 +396,11 @@ export function registerRelationsCommand(program: Command): void {
         }
         
         // Text format
-        console.log('📊 Relationship Graph:\n');
+        console.log('Relationship Graph:\n');
         
         const rootNode = nodes.find(n => n.id === pageId);
         if (rootNode) {
-          console.log(`🎯 ${rootNode.title} (root)`);
+          console.log(`${rootNode.title} (root)`);
           
           const outgoing = edges.filter(e => e.from === pageId);
           const incoming = edges.filter(e => e.to === pageId);

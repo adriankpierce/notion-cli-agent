@@ -95,7 +95,7 @@ describe('Pages Command', () => {
       ]);
 
       expect(mockClient.post).toHaveBeenCalledWith('pages', {
-        parent: { database_id: 'db-123' },
+        parent: { data_source_id: 'db-123' },
         properties: {
           Name: {
             title: [{ text: { content: 'New Page' } }],
@@ -103,7 +103,7 @@ describe('Pages Command', () => {
         },
       });
 
-      expect(console.log).toHaveBeenCalledWith('✅ Page created');
+      expect(console.log).toHaveBeenCalledWith('Page created');
       expect(console.log).toHaveBeenCalledWith('ID:', 'new-page-123');
       expect(console.log).toHaveBeenCalledWith('URL:', 'https://notion.so/new-page-123');
     });
@@ -151,7 +151,7 @@ describe('Pages Command', () => {
 
       expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(mockClient.post).toHaveBeenCalledWith('pages', {
-        parent: { database_id: 'db-123' },
+        parent: { data_source_id: 'db-123' },
         properties: {
           'Task Name': {
             title: [{ text: { content: 'New Task' } }],
@@ -172,7 +172,7 @@ describe('Pages Command', () => {
       ]);
 
       expect(mockClient.post).toHaveBeenCalledWith('pages', {
-        parent: { database_id: 'db-123' },
+        parent: { data_source_id: 'db-123' },
         properties: {
           Title: {
             title: [{ text: { content: 'New Page' } }],
@@ -194,7 +194,7 @@ describe('Pages Command', () => {
       ]);
 
       expect(mockClient.post).toHaveBeenCalledWith('pages', {
-        parent: { database_id: 'db-123' },
+        parent: { data_source_id: 'db-123' },
         properties: {
           Name: {
             title: [{ text: { content: 'New Page' } }],
@@ -222,7 +222,7 @@ describe('Pages Command', () => {
       ]);
 
       expect(mockClient.post).toHaveBeenCalledWith('pages', {
-        parent: { database_id: 'db-123' },
+        parent: { data_source_id: 'db-123' },
         properties: {
           Name: {
             title: [{ text: { content: 'New Page' } }],
@@ -285,7 +285,7 @@ describe('Pages Command', () => {
         },
       });
 
-      expect(console.log).toHaveBeenCalledWith('✅ Page updated');
+      expect(console.log).toHaveBeenCalledWith('Page updated');
       expect(console.log).toHaveBeenCalledWith('ID:', 'page-123');
     });
 
@@ -486,7 +486,7 @@ describe('Pages Command', () => {
         in_trash: true,
       });
 
-      expect(console.log).toHaveBeenCalledWith('✅ Page archived');
+      expect(console.log).toHaveBeenCalledWith('Page archived');
     });
   });
 
@@ -683,7 +683,7 @@ describe('Pages Command', () => {
           allow_deleting_content: false,
         },
       });
-      expect(console.log).toHaveBeenCalledWith('✅ Page updated');
+      expect(console.log).toHaveBeenCalledWith('Page updated');
     });
 
     it('should replace all matches with --all', async () => {

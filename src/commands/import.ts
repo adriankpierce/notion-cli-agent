@@ -276,13 +276,13 @@ export function registerImportCommand(program: Command): void {
           if (files.length > 20) {
             console.log(`  ... and ${files.length - 20} more`);
           }
-          console.log('\n🔍 Dry run - no changes made');
+          console.log('\nDry run - no changes made');
           return;
         }
-        
+
         let imported = 0;
         let failed = 0;
-        
+
         for (const file of files) {
           try {
             const content = fs.readFileSync(file, 'utf-8');
@@ -295,7 +295,7 @@ export function registerImportCommand(program: Command): void {
             const { properties, skipped } = frontMatterToProperties(frontMatter, db.properties, titleProp);
 
             if (skipped.length > 0) {
-              console.warn(`\n⚠️ ${path.basename(file)}: skipped unsupported properties: ${skipped.join(', ')}`);
+              console.warn(`\nWarning: ${path.basename(file)}: skipped unsupported properties: ${skipped.join(', ')}`);
             }
 
             // Add title
@@ -316,14 +316,14 @@ export function registerImportCommand(program: Command): void {
 
             await client.post('pages', pageData);
             imported++;
-            process.stdout.write(`\r📥 Imported ${imported}/${files.length}...`);
+            process.stdout.write(`\rImported ${imported}/${files.length}...`);
           } catch (error) {
             failed++;
-            console.error(`\n❌ Failed to import ${path.basename(file)}: ${(error as Error).message}`);
+            console.error(`\nError: Failed to import ${path.basename(file)}: ${(error as Error).message}`);
           }
         }
         
-        console.log(`\n\n✅ Imported ${imported} files${failed > 0 ? `, ${failed} failed` : ''}`);
+        console.log(`\n\nImported ${imported} files${failed > 0 ? `, ${failed} failed` : ''}`);
     }));
 
   // Import from CSV
@@ -368,13 +368,13 @@ export function registerImportCommand(program: Command): void {
             const title = titleIdx >= 0 ? values[titleIdx] : values[0];
             console.log(`  ${i + 1}. ${title}`);
           });
-          console.log('\n🔍 Dry run - no changes made');
+          console.log('\nDry run - no changes made');
           return;
         }
-        
+
         let imported = 0;
         let failed = 0;
-        
+
         for (const line of dataLines) {
           try {
             const values = parseCSVLine(line);
@@ -449,14 +449,14 @@ export function registerImportCommand(program: Command): void {
             });
             
             imported++;
-            process.stdout.write(`\r📥 Imported ${imported}/${dataLines.length}...`);
+            process.stdout.write(`\rImported ${imported}/${dataLines.length}...`);
           } catch (error) {
             failed++;
-            console.error(`\n❌ Failed: ${(error as Error).message}`);
+            console.error(`\nError: Failed: ${(error as Error).message}`);
           }
         }
         
-        console.log(`\n\n✅ Imported ${imported} rows${failed > 0 ? `, ${failed} failed` : ''}`);
+        console.log(`\n\nImported ${imported} rows${failed > 0 ? `, ${failed} failed` : ''}`);
     }));
 
   // Import single markdown file to page (replaces existing content)
@@ -483,12 +483,12 @@ export function registerImportCommand(program: Command): void {
           if (lines.length > 10) {
             console.log(`  ... and ${lines.length - 10} more lines`);
           }
-          console.log('\n🔍 Dry run - no changes made');
+          console.log('\nDry run - no changes made');
           return;
         }
 
         await writePageMarkdown(client, options.to, body);
 
-        console.log(`\n✅ Imported ${body.length} chars to page`);
+        console.log(`\nImported ${body.length} chars to page`);
     }));
 }

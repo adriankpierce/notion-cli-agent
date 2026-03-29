@@ -313,7 +313,7 @@ export function registerAICommand(program: Command): void {
           
           if (info.options && info.options.length > 0) {
             console.log(`**Valid values:** ${info.options.map(o => `"${o}"`).join(', ')}`);
-            console.log(`⚠️ Use EXACTLY these values, not translations or variations.`);
+            console.log(`Warning: Use EXACTLY these values, not translations or variations.`);
           }
           
           if (info.examples.length > 0) {

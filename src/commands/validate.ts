@@ -76,7 +76,7 @@ export function registerValidateCommand(program: Command): void {
         const db = await getDatabaseSchema(client, databaseId);
         const dbTitle = getDbTitle(db);
 
-        console.log(`🔍 Validating database: ${dbTitle}\n`);
+        console.log(`Validating database: ${dbTitle}\n`);
         
         // Determine required properties
         const requiredProps = options.required 
@@ -207,7 +207,7 @@ export function registerValidateCommand(program: Command): void {
         }
         
         if (issues.length === 0) {
-          console.log('✅ No issues found!\n');
+          console.log('OK: No issues found!\n');
         } else {
           const errors = issues.filter(i => i.severity === 'error').length;
           const warnings = issues.filter(i => i.severity === 'warning').length;
@@ -216,8 +216,8 @@ export function registerValidateCommand(program: Command): void {
           console.log(`Found ${issues.length} issues: ${errors} errors, ${warnings} warnings, ${infos} info\n`);
           
           for (const [type, typeIssues] of Object.entries(byType)) {
-            const icon = typeIssues[0].severity === 'error' ? '❌' :
-                        typeIssues[0].severity === 'warning' ? '⚠️' : 'ℹ️';
+            const icon = typeIssues[0].severity === 'error' ? 'FAIL' :
+                        typeIssues[0].severity === 'warning' ? 'WARN' : 'Info:';
             
             console.log(`${icon} ${type.replace(/_/g, ' ').toUpperCase()} (${typeIssues.length})`);
             
@@ -269,9 +269,9 @@ export function registerValidateCommand(program: Command): void {
           fillScore * 0.3 + errorScore * 0.3 + warningScore * 0.2 + timelinessScore * 0.2
         );
 
-        const emoji = healthScore >= 80 ? '🟢' : healthScore >= 50 ? '🟡' : '🔴';
+        const grade = healthScore >= 80 ? 'GOOD' : healthScore >= 50 ? 'FAIR' : 'POOR';
         console.log(`\n${'═'.repeat(40)}`);
-        console.log(`📊 Health Score: ${healthScore}/100 ${emoji}`);
+        console.log(`Health Score: ${healthScore}/100 ${grade}`);
         console.log(`${'═'.repeat(40)}`);
         console.log(`   Fill rate:    ${Math.round(fillScore)}/100 (weight: 30%)`);
         console.log(`   Errors:       ${Math.round(errorScore)}/100 (weight: 30%)`);
@@ -290,7 +290,7 @@ export function registerValidateCommand(program: Command): void {
         const db = await getDatabaseSchema(client, databaseId);
         const dbTitle = getDbTitle(db);
 
-        console.log(`🔍 Linting: ${dbTitle}\n`);
+        console.log(`Linting: ${dbTitle}\n`);
         
         // Quick queries for common issues
         const checks: { name: string; filter: Record<string, unknown>; severity: string }[] = [];
@@ -350,14 +350,14 @@ export function registerValidateCommand(program: Command): void {
             const count = countResult.results.length;
 
             if (count > 0) {
-              const icon = check.severity === 'error' ? '❌' : '⚠️';
+              const icon = check.severity === 'error' ? 'FAIL' : 'WARN';
               console.log(`${icon} ${check.name}: ${count} found`);
               totalIssues += count;
             } else {
-              console.log(`✅ ${check.name}: OK`);
+              console.log(`OK: ${check.name}: OK`);
             }
           } catch {
-            console.log(`⏭️ ${check.name}: skipped (filter not supported)`);
+            console.log(`SKIP: ${check.name}: skipped (filter not supported)`);
           }
         }
 
@@ -375,13 +375,13 @@ export function registerValidateCommand(program: Command): void {
         const duplicates = [...titleCounts.entries()].filter(([, count]) => count > 1);
         if (duplicates.length > 0) {
           const dupeCount = duplicates.reduce((sum, [, count]) => sum + count, 0);
-          console.log(`⚠️ Duplicate titles: ${duplicates.length} titles repeated (${dupeCount} entries)`);
+          console.log(`Warning: Duplicate titles: ${duplicates.length} titles repeated (${dupeCount} entries)`);
           for (const [title, count] of duplicates.slice(0, 3)) {
             console.log(`   "${title}" appears ${count} times`);
           }
           totalIssues += dupeCount;
         } else {
-          console.log('✅ Duplicate titles: OK');
+          console.log('OK: Duplicate titles: OK');
         }
 
         console.log(`\nTotal issues: ${totalIssues}`);
@@ -448,9 +448,9 @@ export function registerValidateCommand(program: Command): void {
         
         // Calculate health score (handle empty databases)
         if (entries.length === 0) {
-          console.log(`\n📊 Health Report: ${dbTitle}\n`);
+          console.log(`\nHealth Report: ${dbTitle}\n`);
           console.log(`${'═'.repeat(40)}`);
-          console.log(`Health Score: 0/100 🔴`);
+          console.log(`Health Score: 0/100 POOR`);
           console.log(`${'═'.repeat(40)}\n`);
           console.log('Database is empty — no entries to analyze.');
           return;
@@ -465,15 +465,15 @@ export function registerValidateCommand(program: Command): void {
         const healthScore = Math.round((activityScore * 0.3) + (avgFillRate * 0.5) + (completionRate * 0.2));
 
         // Output
-        console.log(`\n📊 Health Report: ${dbTitle}\n`);
+        console.log(`\nHealth Report: ${dbTitle}\n`);
         console.log(`${'═'.repeat(40)}`);
-        console.log(`Health Score: ${healthScore}/100 ${healthScore >= 80 ? '🟢' : healthScore >= 50 ? '🟡' : '🔴'}`);
+        console.log(`Health Score: ${healthScore}/100 ${healthScore >= 80 ? 'GOOD' : healthScore >= 50 ? 'FAIR' : 'POOR'}`);
         console.log(`${'═'.repeat(40)}\n`);
 
         const activityPct = Math.round((recentlyEdited / entries.length) * 100);
-        console.log(`📈 Activity (last 7 days): ${recentlyEdited}/${entries.length} entries (${activityPct}%)`);
-        console.log(`✅ Completion rate: ${completionRate}%`);
-        console.log(`📝 Average fill rate: ${Math.round(avgFillRate)}%\n`);
+        console.log(`Activity (last 7 days): ${recentlyEdited}/${entries.length} entries (${activityPct}%)`);
+        console.log(`Completion rate: ${completionRate}%`);
+        console.log(`Average fill rate: ${Math.round(avgFillRate)}%\n`);
         
         console.log('Property fill rates:');
         const sortedFillRates = Object.entries(fillRates)
@@ -481,7 +481,7 @@ export function registerValidateCommand(program: Command): void {
 
         for (const [prop, rate] of sortedFillRates) {
           const bar = '█'.repeat(Math.ceil(rate / 10)) + '░'.repeat(10 - Math.ceil(rate / 10));
-          const icon = rate >= 80 ? '✅' : rate >= 50 ? '⚠️' : '❌';
+          const icon = rate >= 80 ? 'OK' : rate >= 50 ? 'WARN' : 'FAIL';
           console.log(`  ${icon} ${prop.padEnd(25)} ${bar} ${rate}%`);
         }
 

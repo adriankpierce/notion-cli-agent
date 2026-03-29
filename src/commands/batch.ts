@@ -179,7 +179,7 @@ export function registerBatchCommand(program: Command): void {
         }
 
         if (options.dryRun) {
-          console.log('🔍 Dry run - would execute:');
+          console.log('Dry run - would execute:');
           operations.forEach((op, i) => {
             console.log(`  ${i + 1}. ${op.op} ${op.type} ${op.id || op.parent || ''}`);
           });
@@ -199,7 +199,7 @@ export function registerBatchCommand(program: Command): void {
           console.log(`## Batch Results: ${succeeded}/${operations.length} succeeded\n`);
 
           results.forEach(r => {
-            const status = r.success ? '✅' : '❌';
+            const status = r.success ? 'OK' : 'FAIL';
             const timing = r.durationMs !== undefined ? ` (${r.durationMs}ms)` : '';
             console.log(`${status} [${r.index}] ${r.op}${timing}`);
             if (r.error) {
@@ -212,7 +212,7 @@ export function registerBatchCommand(program: Command): void {
           });
 
           if (failed > 0) {
-            console.log(`\n⚠️ ${failed} operations failed`);
+            console.log(`\nWarning: ${failed} operations failed`);
           }
         } else {
           console.log(formatOutput({

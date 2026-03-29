@@ -296,9 +296,9 @@ export function registerFindCommand(program: Command): void {
         
         // Explain mode
         if (options.explain) {
-          console.log('🔍 Parsed query:', JSON.stringify(parsed, null, 2));
-          console.log('\n📋 Generated filter:', JSON.stringify(filter, null, 2));
-          console.log('\n💡 To execute manually:');
+          console.log('Parsed query:', JSON.stringify(parsed, null, 2));
+          console.log('\nGenerated filter:', JSON.stringify(filter, null, 2));
+          console.log('\nTo execute manually:');
           console.log(`notion db query ${options.database} --filter '${JSON.stringify(filter)}'`);
           return;
         }
@@ -346,7 +346,7 @@ export function registerFindCommand(program: Command): void {
         
         for (const page of result.results) {
           const title = getPageTitle(page);
-          console.log(`📄 ${title}`);
+          console.log(`${title}`);
           console.log(`   ID: ${page.id}`);
           if (page.url) console.log(`   URL: ${page.url}`);
           console.log('');

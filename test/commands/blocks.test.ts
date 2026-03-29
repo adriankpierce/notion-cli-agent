@@ -125,7 +125,7 @@ describe('Blocks Command', () => {
         }],
       });
 
-      expect(console.log).toHaveBeenCalledWith('✅ Added 1 block(s)');
+      expect(console.log).toHaveBeenCalledWith('Added 1 block(s)');
     });
 
     it('should append heading blocks', async () => {
@@ -147,7 +147,7 @@ describe('Blocks Command', () => {
         ]),
       });
 
-      expect(console.log).toHaveBeenCalledWith('✅ Added 3 block(s)');
+      expect(console.log).toHaveBeenCalledWith('Added 3 block(s)');
     });
 
     it('should append bullet list items', async () => {

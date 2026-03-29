@@ -242,7 +242,7 @@ describe('Relations Command', () => {
           },
         },
       });
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Linked'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Linked'));
     });
 
     it('should handle already linked pages', async () => {
@@ -466,7 +466,7 @@ describe('Relations Command', () => {
           },
         },
       });
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Unlinked'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Unlinked'));
     });
 
     it('should unlink bidirectionally with --bidirectional', async () => {
@@ -625,7 +625,7 @@ describe('Relations Command', () => {
 
       await program.parseAsync(['node', 'test', 'relations', 'graph', 'root-123']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('📊 Relationship Graph'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Relationship Graph'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Root Page'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Links to'));
     });

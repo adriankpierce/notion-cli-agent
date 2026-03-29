@@ -28,7 +28,7 @@ export function registerSkillCommand(program: Command): void {
 
       // Copy recursively
       copyDir(src, dest);
-      console.log(`✅ Installed notion skill to ${dest}`);
+      console.log(`Installed notion skill to ${dest}`);
     });
 }
 

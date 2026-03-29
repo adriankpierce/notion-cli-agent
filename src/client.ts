@@ -167,6 +167,38 @@ export class NotionClient {
   delete<T = unknown>(path: string): Promise<T> {
     return this.request<T>(path, { method: 'DELETE' });
   }
+
+  /**
+   * Upload a file via multipart/form-data.
+   * Used exclusively by POST /v1/file_uploads/{id}/send.
+   */
+  async sendFile<T = unknown>(apiPath: string, fileBuffer: Buffer, filename: string, contentType?: string): Promise<T> {
+    await this.rateLimiter.wait();
+
+    const formData = new FormData();
+    const blob = contentType
+      ? new Blob([fileBuffer], { type: contentType })
+      : new Blob([fileBuffer]);
+    formData.append('file', blob, filename);
+
+    const url = `${NOTION_API_BASE}/${apiPath}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'Notion-Version': this.version,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      const message = (error as { message?: string }).message || response.statusText;
+      throw new Error(`Notion API Error (${response.status}): ${message}`);
+    }
+
+    return response.json() as Promise<T>;
+  }
 }
 
 // Singleton instance management

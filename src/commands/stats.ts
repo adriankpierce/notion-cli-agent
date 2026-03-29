@@ -170,7 +170,7 @@ export function registerStatsCommand(program: Command): void {
         }
         
         // Standard output
-        console.log(`📊 Database: ${title}`);
+        console.log(`Database: ${title}`);
         console.log(`   Total entries: ${entries.length}\n`);
         
         for (const [propName, counts] of Object.entries(breakdowns)) {
@@ -235,7 +235,7 @@ export function registerStatsCommand(program: Command): void {
           return;
         }
         
-        console.log(`📅 Activity timeline (last ${days} days)\n`);
+        console.log(`Activity timeline (last ${days} days)\n`);
         
         // Generate all days
         const allDays: string[] = [];

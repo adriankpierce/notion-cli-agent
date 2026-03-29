@@ -97,7 +97,7 @@ console.log("code");
           allow_deleting_content: false,
         },
       });
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Imported'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Imported'));
     });
 
     it('should show dry run preview without importing', async () => {
@@ -156,7 +156,7 @@ Task 3,Todo,Low,2026-03-01`;
         parent: { database_id: 'db-123' },
         properties: expect.any(Object),
       }));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Imported 3 rows'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Imported 3 rows'));
     });
 
     it('should show CSV import preview with --dry-run', async () => {
@@ -178,7 +178,7 @@ Task 3,Todo,Low,2026-03-01`;
       await program.parseAsync(['node', 'test', 'import', 'csv', '/tmp/data.csv', '--to', 'db-123', '--limit', '2']);
 
       expect(mockClient.post).toHaveBeenCalledTimes(2); // Only 2 rows
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Imported 2 rows'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Imported 2 rows'));
     });
 
     it('should use custom title column with --title-column', async () => {
@@ -233,7 +233,7 @@ Task 3,Todo,Low,2026-03-01`;
       await program.parseAsync(['node', 'test', 'import', 'csv', '/tmp/data.csv', '--to', 'db-123']);
 
       expect(mockClient.post).toHaveBeenCalledTimes(3);
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Imported 2 rows, 1 failed'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Imported 2 rows, 1 failed'));
     });
   });
 

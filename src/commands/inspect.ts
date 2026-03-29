@@ -119,11 +119,11 @@ export function registerInspectCommand(program: Command): void {
             const desc = getDbDescription(db);
 
             if (options.compact) {
-              console.log(`📊 ${title} (${db.id.slice(0, 8)}...)${multiTag}`);
+              console.log(`${title}  ${db.id}`);
               continue;
             }
 
-            console.log(`📊 ${title}${multiTag}`);
+            console.log(`${title}${multiTag}`);
             console.log(`   ID: ${db.id}`);
             if (desc) console.log(`   Description: ${desc}`);
 
@@ -218,7 +218,7 @@ export function registerInspectCommand(program: Command): void {
         }
         
         // Standard detailed output
-        console.log(`📊 Database: ${title}`);
+        console.log(`Database: ${title}`);
         console.log(`ID: ${db.id}`);
         if (db.url) console.log(`URL: ${db.url}`);
         if (desc) console.log(`Description: ${desc}`);

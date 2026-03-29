@@ -156,7 +156,7 @@ describe('Comments Command', () => {
         rich_text: [{ type: 'text', text: { content: 'My comment' } }],
       });
 
-      expect(console.log).toHaveBeenCalledWith('✅ Comment created');
+      expect(console.log).toHaveBeenCalledWith('Comment created');
       expect(console.log).toHaveBeenCalledWith('ID:', 'new-comment-123');
       expect(console.log).toHaveBeenCalledWith('Discussion:', 'disc-123');
     });

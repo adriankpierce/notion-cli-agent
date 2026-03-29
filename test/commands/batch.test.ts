@@ -327,7 +327,7 @@ describe('Batch Command', () => {
       await program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations), '--llm']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Batch Results:'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('OK'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('ID: page-1'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('URL:'));
     });
@@ -346,9 +346,9 @@ describe('Batch Command', () => {
         program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations), '--llm'])
       ).rejects.toThrow('process.exit(1)');
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('❌'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('FAIL'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Error: Not found'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('⚠️'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Warning:'));
     });
   });
 
