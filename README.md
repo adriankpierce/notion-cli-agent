@@ -1,703 +1,210 @@
 # notion-cli-agent
 
-> The most powerful command-line interface for Notion — built for AI agents first, humans too.
+> A command-line interface for Notion — built for AI agents and humans.
 
 [![npm version](https://img.shields.io/npm/v/notion-cli-agent.svg)](https://www.npmjs.com/package/notion-cli-agent)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-notion-cli-agent is designed to be used by AI agents that need to read and write Notion workspaces — natural language queries, batch operations, `--llm` output mode, workspace introspection, and more. Works great for humans too.
+Uses Notion's native markdown API (`v2026-03-11`) for reading and writing page content. No hand-rolled block conversion — markdown goes straight to and from the Notion API.
 
 ---
 
-## 🤖 For AI Agents
-
-### Quick start
-
-```bash
-npm install -g notion-cli-agent
-export NOTION_TOKEN="ntn_your_token_here"
-
-# Full quick reference (read this first)
-notion quickstart
-```
-
-### Agent Skills (recommended)
-
-This repo ships [AgentSkills](https://agentskills.dev)-compatible skill files in the [`skills/`](./skills/) directory. Skills use **progressive disclosure**: the core `SKILL.md` is small enough to live in your agent's context window, and detailed reference files (`filters.md`, `batch-patterns.md`, `workflows.md`) are loaded on demand.
-
-```
-skills/
-├── notion-onboarding/    ← run first: maps your workspace to a state file
-└── notion-cli-agent/     ← core CLI skill + references
-```
-
-**Recommended setup for agents:**
-
-1. Install skills in your agent framework (see [`skills/README.md`](./skills/README.md))
-2. Run the **`notion-onboarding`** skill once — it discovers your databases (tasks, projects, OKRs, home page) and saves them to `~/.config/notion/workspace.json`
-3. All subsequent tasks use the mapped IDs automatically — no more looking up database IDs
-
-### Why a CLI over the Notion MCP/API?
-
-- **`--llm` mode** — compact, structured output optimized for agent consumption
-- **`notion find`** — natural language → Notion filters in one command
-- **`notion batch`** — multiple operations in a single shell call (minimize tool calls)
-- **`notion ai prompt`** — generates a database-specific prompt for the agent
-- **`notion inspect context`** — full schema + examples + command reference in one shot
-- No rate-limit boilerplate, no SDK setup, shell-composable
-
----
-
-## ✨ Features
-
-### Core Operations
-- **Search** — Find pages and databases across your workspace
-- **Pages** — Create, read, update, archive pages with full property support
-- **Databases** — Query with filters, create schemas, manage entries
-- **Blocks** — Add and manage page content (paragraphs, headings, lists, code, etc.)
-- **Comments** — Read and create comments on pages
-- **Users** — List workspace users and integrations
-
-### 🤖 AI Agent Features
-- **Smart Queries** — Natural language queries translated to Notion filters
-- **Batch Operations** — Execute multiple operations in one command
-- **Agent Prompts** — Generate optimal prompts for AI agents to work with databases
-- **Summarize** — Get concise page summaries
-- **Extract** — Pull structured data from page content
-
-### 🔄 Obsidian Integration
-- **Export to Obsidian** — Pages and databases with YAML frontmatter
-- **Import from Obsidian** — Import vault notes to Notion
-- **CSV & Markdown import** — Bulk import from files
-
-### 📊 Analytics & Validation
-- **Statistics** — Database metrics, breakdowns by property
-- **Timeline** — Activity visualization over time
-- **Health Check** — Database integrity scoring
-- **Validation** — Find missing fields, overdue items, stale entries
-
-### 🔗 Advanced Features
-- **Templates** — Save and reuse page structures
-- **Backup** — Full database backup to JSON/Markdown
-- **Duplicate** — Clone pages and entire databases
-- **Relations** — Manage links, find backlinks, visualize graphs
-- **Bulk Operations** — Update or archive hundreds of entries at once
-
----
-
-## 📦 Installation
-
-### From npm (recommended)
+## Install
 
 ```bash
 npm install -g notion-cli-agent
 ```
 
-### From source
+Requires Node.js 20+ and a [Notion integration token](https://www.notion.so/my-integrations).
+
+## Configure
 
 ```bash
-# Clone the repository
-git clone https://github.com/Balneario-de-Cofrentes/notion-cli-agent.git
-cd notion-cli-agent
-
-# Install dependencies
-pnpm install
-
-# Build
-pnpm build
-
-# Link globally
-pnpm link --global
-```
-
-### Requirements
-- Node.js 20+
-- A Notion integration token ([create one here](https://www.notion.so/my-integrations))
-
----
-
-## ⚙️ Configuration
-
-### 1. Get your API token
-
-1. Go to [notion.so/my-integrations](https://www.notion.so/my-integrations)
-2. Click "New integration"
-3. Give it a name and select capabilities
-4. Copy the token (starts with `ntn_` or `secret_`)
-
-### 2. Set the token
-
-```bash
-# Option 1: Environment variable (recommended)
+# Option 1: Environment variable
 export NOTION_TOKEN="ntn_your_token_here"
 
-# Option 2: Pass directly
+# Option 2: Config file (persists across sessions)
+mkdir -p ~/.config/notion
+echo "ntn_your_token_here" > ~/.config/notion/api_key
+chmod 600 ~/.config/notion/api_key
+
+# Option 3: Pass directly
 notion --token "ntn_xxx" search "query"
 ```
 
-### 3. Share content with your integration
-
-**Important:** Your integration can only access pages explicitly shared with it.
-
-1. Open any page or database in Notion
-2. Click "..." menu → "Connect to" → Select your integration
+Then share your pages/databases with the integration in Notion (... menu > Connect to).
 
 ---
 
-## 📖 Usage Guide
+## Core Markdown Operations
 
-### Basic Commands
+Three commands map 1:1 to Notion's native markdown API:
+
+| Operation | Command | API endpoint |
+|-----------|---------|-------------|
+| **Create** | `notion page create` | `POST /v1/pages` with `markdown` body |
+| **Read** | `notion page read` | `GET /v1/pages/{id}/markdown` |
+| **Update** | `notion page edit` | `PATCH /v1/pages/{id}/markdown` |
+
+### Create a page
+
+```bash
+# With title only
+notion page create --parent <db_id> --title "Meeting Notes"
+
+# With markdown content from file
+notion page create --parent <db_id> --title "Design Doc" --file doc.md
+
+# With properties
+notion page create --parent <db_id> --title "Bug Fix" \
+  --prop "Status:status=Todo" --prop "Priority:select=High"
+```
+
+If `--title` is omitted, Notion extracts the first `# h1` heading from the markdown.
+
+### Read a page
+
+```bash
+notion page read <page_id>                # markdown to stdout
+notion page read <page_id> -o page.md     # save to file
+notion page read <page_id> --no-title     # omit the title heading
+notion page read <page_id> --json         # raw block JSON
+```
+
+### Edit a page (search-and-replace)
+
+```bash
+notion page edit <page_id> --search "old text" --replace "new text"
+notion page edit <page_id> --search "typo" --replace "fixed" --all
+notion page edit <page_id> --search "old" --replace "new" --dry-run
+```
+
+Uses Notion's `update_content` operation. Search is exact and case-sensitive. Must match exactly once unless `--all` is used.
+
+---
+
+## File Uploads
+
+Upload files to pages. Block type is auto-detected from the file extension (image, video, audio, pdf, or generic file).
+
+```bash
+# Local file
+notion file upload <page_id> photo.jpg
+
+# From URL (Notion fetches it)
+notion file upload <page_id> --url https://example.com/doc.pdf
+
+# With caption, at top of page
+notion file upload <page_id> photo.jpg --caption "Vacation" --position top
+```
+
+After upload, the file appears in `page read` markdown output and can be repositioned with `page edit`.
+
+---
+
+## Search and Query
 
 ```bash
 # Search across workspace
 notion search "project plan"
 notion search "meeting" --type page
-notion search "" --type database    # List all databases
 
-# Exact lookup in a known database (deterministic)
+# Query a specific database
 notion db query <db_id> --title "Known Page" --json
+notion db query <db_id> --limit 20 --llm
+notion db query <db_id> --sort "Created time" --sort-dir desc --limit 5 --llm
 
-# Filtered search (best-effort — Notion search is fuzzy)
-notion search "keyword" --db <db_id> --exact --first --json
-notion search "task" --db <db_id>                   # Filter by parent database
+# Natural language filters
+notion find "overdue tasks unassigned" -d <db_id> --llm
+notion find "high priority" -d <db_id> --explain
+```
 
-# Get page info
-notion page get <page_id>
-notion page get <page_id> --content  # Include blocks
+For exact lookup by title in a known database, use `db query --title` — not `search`. Notion's search API is fuzzy.
 
-# Create page in database
-notion page create --parent <db_id> --title "New Task"
-notion page create --parent <db_id> --title "Bug Fix" \
-  --prop "Status=Todo" \
-  --prop "Priority=High"
-notion page create --parent <db_id> --title "Meeting Notes" --icon 📝
+---
 
-# Update page
+## Page Properties
+
+```bash
+# Update properties
 notion page update <page_id> --prop "Status:status=Done"
 notion page update <page_id> --title "New Title"
-notion page update <page_id> --icon 🚀
-notion page update <page_id> --clear-prop "Assignee"  # Type-aware clear
+notion page update <page_id> --clear-prop "Assignee"
+notion page update <page_id> --icon emoji_character
 
-# Archive page
+# Archive
 notion page archive <page_id>
 ```
 
----
-
-## 🤖 AI Agent Features
-
-### Smart Queries with `find`
-
-Translate natural language into Notion filters:
+Property type hints — auto-detection treats plain strings as `select`. Use `Key:type=Value` to force a type:
 
 ```bash
-# Find overdue tasks
-notion find "overdue tasks" -d <db_id>
-
-# Find unassigned items in progress
-notion find "in progress unassigned" -d <db_id>
-
-# Find high priority pending items
-notion find "urgent pending" -d <db_id>
-
-# See what filter was generated
-notion find "tareas vencidas" -d <db_id> --explain
+notion page update <id> --prop "Status:status=Done"
+notion page update <id> --prop "Notes:rich_text=Some text"
+notion page update <id> --prop "Owner:people=<user_id>"
 ```
 
-**Supported patterns:**
-- Status: `done`, `in progress`, `todo`, `pending`, `hecho`, `en marcha`
-- Assignment: `unassigned`, `sin asignar`
-- Dates: `overdue`, `vencidas`, `today`, `this week`
-- Priority: `urgent`, `high priority`, `importante`
+---
 
-### Batch Operations
-
-Execute multiple operations in one command — perfect for AI agents to minimize tool calls:
+## Workspace Introspection
 
 ```bash
-# Preview what would happen
+notion inspect ws --compact              # all databases: name + ID
+notion inspect schema <db_id> --llm      # property types + valid values
+notion inspect context <db_id>           # full context for working with a DB
+notion ai prompt <db_id>                 # generate agent-specific instructions
+```
+
+---
+
+## Import and Export
+
+### Obsidian
+
+```bash
+# Export database to vault
+notion export db <db_id> --vault ~/obsidian-vault --folder notion-tasks --content
+
+# Import vault to database
+notion import obsidian ~/my-vault --to <db_id> --content
+```
+
+### Markdown and CSV
+
+```bash
+# Import markdown to existing page (replaces content)
+notion import markdown doc.md --to <page_id>
+
+# Import CSV to database
+notion import csv data.csv --to <db_id>
+```
+
+---
+
+## Batch and Bulk Operations
+
+```bash
+# Batch: multiple operations in one command
 notion batch --dry-run --data '[
-  {"op": "get", "type": "page", "id": "abc123"},
-  {"op": "create", "type": "page", "parent": "db_id", "data": {...}},
-  {"op": "update", "type": "page", "id": "xyz789", "data": {...}}
+  {"op":"get","type":"page","id":"<page_id>"},
+  {"op":"create","type":"page","parent":"<db_id>","data":{"title":"New"}},
+  {"op":"update","type":"page","id":"<id>","data":{"Status":"Done"}}
 ]'
 
-# Execute with LLM-friendly output
-notion batch --llm --data '[...]'
-
-# Read from file
-notion batch -f operations.json
-```
-
-**Supported operations:**
-| Op | Types | Description |
-|----|-------|-------------|
-| `get` | page, database, block | Retrieve by ID |
-| `create` | page, database | Create new |
-| `update` | page, database, block | Modify |
-| `delete` | page, block | Archive/delete |
-| `query` | database | Query with filters |
-| `append` | block | Add children |
-
-### Generate Agent Prompts
-
-Create optimal prompts for AI agents to work with a specific database:
-
-```bash
-notion ai prompt <database_id>
-```
-
-**Output includes:**
-- Database schema with all properties
-- Valid values for select/status fields (exact spelling matters!)
-- Example entries
-- Common operations with correct syntax
-- Warnings about property naming (e.g., "Title is called 'Título', not 'Name'")
-
-### Summarize Pages
-
-Get concise summaries for quick understanding:
-
-```bash
-notion ai summarize <page_id>
-
-# Output:
-# Project Plan Q1
-# Last edited: 2 days ago
-# Blocks: 45
-# Properties:
-#   - Status: In Progress
-#   - Owner: Juan
-# Sections:
-#   - Overview
-#   - Timeline
-#   - Resources
-# Todos: 8/12 completed
-```
-
-### Extract Structured Data
-
-Pull specific data points from page content:
-
-```bash
-notion ai extract <page_id> --schema "email,phone,company,date"
-
-# Output:
-{
-  "email": "contact@example.com",
-  "phone": "+34 612 345 678",
-  "company": "Acme Corp",
-  "date": "2024-03-15"
-}
-```
-
-### Command Suggestions
-
-Get command suggestions based on natural language:
-
-```bash
-notion ai suggest <db_id> "quiero ver las tareas completadas esta semana"
-
-# Outputs:
-# notion find "hecho" -d <db_id>
-# notion db query <db_id> --filter-prop "Status" --filter-value "Hecho" --filter-prop-type status
-```
-
----
-
-## 🔄 Obsidian Integration
-
-### Export to Obsidian
-
-**Export a single page:**
-```bash
-notion export page <page_id> --obsidian -o my-note.md
-```
-
-**Export entire database to vault:**
-```bash
-notion export db <database_id> --vault ~/obsidian-vault --folder notion-tasks
-```
-
-**With full page content:**
-```bash
-notion export db <db_id> --vault ~/vault --content
-```
-
-**Exported files include:**
-```yaml
----
-notion_id: "abc123..."
-notion_url: "https://notion.so/..."
-created: 2024-01-15
-updated: 2024-02-01
-status: "In Progress"
-priority: "High"
-tags:
-  - "project"
-  - "q1"
----
-# Page Title
-
-Content here...
-```
-
-### Import from Obsidian
-
-**Import vault to database:**
-```bash
-notion import obsidian ~/my-vault --to <database_id>
-notion import obsidian ~/my-vault --to <db_id> --folder specific-folder
-notion import obsidian ~/my-vault --to <db_id> --content  # Include page content
-```
-
-**Import CSV:**
-```bash
-notion import csv data.csv --to <database_id>
-notion import csv tasks.csv --to <db_id> --title-column "Task Name"
-```
-
-**Import Markdown file:**
-```bash
-notion import markdown document.md --to <page_id>
-notion import markdown doc.md --to <page_id> --replace  # Replace existing content
-```
-
----
-
-## 📊 Database Analytics
-
-### Statistics Overview
-
-```bash
-notion stats overview <database_id>
-
-# Output:
-# 📊 Database: Tasks
-#    Total entries: 342
-#
-# Status:
-#   Done                 124 (36%)  ████████
-#   In Progress           89 (26%)  ██████
-#   Todo                  78 (23%)  █████
-#   Blocked               51 (15%)  ███
-#
-# Priority:
-#   High                  45 (13%)  ███
-#   Medium               187 (55%)  ███████████
-#   Low                  110 (32%)  ███████
-```
-
-### Activity Timeline
-
-```bash
-notion stats timeline <database_id> --days 14
-
-# 2024-02-01 (Thu)  12 ████████████
-# 2024-01-31 (Wed)   8 ████████
-# 2024-01-30 (Tue)  15 ███████████████
-# ...
-```
-
----
-
-## ✅ Validation & Health
-
-### Full Validation
-
-```bash
-notion validate check <database_id> \
-  --required "Assignee,Deadline" \
-  --check-dates \
-  --check-stale 30 \
-  --fix
-
-# Output:
-# ⚠️ MISSING REQUIRED (23)
-#    - Task ABC: Missing required property: Assignee
-#    - Task XYZ: Missing required property: Deadline
-#    Fix: notion page update <id> --prop "Assignee=..."
-#
-# ⚠️ OVERDUE (8)
-#    - Old task: Overdue: deadline was 2024-01-15
-#
-# ℹ️ STALE (5)
-#    - Stuck item: Not updated in 45 days (status: In Progress)
-#
-# 📊 Health Score: 72/100
-```
-
-### Quick Lint
-
-```bash
-notion validate lint <database_id>
-
-# ✅ Empty titles: OK
-# ⚠️ "In Progress" for >30 days: 5 found
-# Total issues: 5
-```
-
-### Health Report
-
-```bash
-notion validate health <database_id>
-
-# 📊 Health Report: Tasks
-# ════════════════════════════════════════
-# Health Score: 78/100 🟡
-# ════════════════════════════════════════
-#
-# 📈 Activity (last 7 days): 34/100 entries (34%)
-# ✅ Completion rate: 65%
-# 📝 Average fill rate: 82%
-#
-# Property fill rates:
-#   ✅ Title         ██████████ 100%
-#   ✅ Status        ██████████ 100%
-#   ⚠️ Assignee      ████████░░ 77%
-#   ❌ Tags          ██░░░░░░░░ 15%
-```
-
----
-
-## 💾 Backup & Restore
-
-### Full Database Backup
-
-```bash
-# Backup to JSON
-notion backup <database_id> -o ./backups/tasks
-
-# Backup to Markdown
-notion backup <db_id> -o ./backups --format markdown
-
-# Include page content
-notion backup <db_id> -o ./backups --content
-
-# Incremental backup (only changed entries)
-notion backup <db_id> -o ./backups --incremental
-```
-
-**Output structure:**
-```
-backups/
-├── schema.json           # Database schema
-├── index.json            # Entry index
-├── .backup-meta.json     # Backup metadata
-└── pages/
-    ├── Task_One_abc123.json
-    ├── Task_Two_def456.json
-    └── ...
-```
-
----
-
-## 🔗 Relations & Backlinks
-
-### Find Backlinks
-
-Discover what pages link to a specific page:
-
-```bash
-notion relations backlinks <page_id>
-
-# 📎 Direct Relations:
-#    Project Alpha
-#    └─ via property: Related Tasks
-#
-#    Sprint 23
-#    └─ via property: Tasks
-#
-# 📝 Potential Mentions:
-#    Meeting Notes Jan 15
-#    Weekly Report
-```
-
-### Link/Unlink Pages
-
-```bash
-# Create relation
-notion relations link <source_id> <target_id> --property "Related"
-
-# Bidirectional linking
-notion relations link <page1> <page2> --property "Related" --bidirectional
-
-# Remove relation
-notion relations unlink <source_id> <target_id> --property "Related"
-```
-
-### Visualize Relationship Graph
-
-```bash
-# Text format
-notion relations graph <page_id> --depth 2
-
-# DOT format (for Graphviz)
-notion relations graph <page_id> --format dot > graph.dot
-dot -Tpng graph.dot -o graph.png
-
-# JSON format
-notion relations graph <page_id> --format json
-```
-
----
-
-## 📋 Templates
-
-### Save a Page as Template
-
-```bash
-notion template save <page_id> --name "weekly-report" --description "Weekly team report"
-```
-
-### List Templates
-
-```bash
-notion template list
-
-# 📄 weekly-report
-#    Blocks: 15
-#    Description: Weekly team report
-#
-# 📄 meeting-notes
-#    Blocks: 8
-```
-
-### Use Template
-
-```bash
-notion template use "weekly-report" --parent <db_id> --title "Report Week 5"
-```
-
-### Manage Templates
-
-```bash
-notion template show "weekly-report"  # View details
-notion template delete "weekly-report"  # Remove
-```
-
----
-
-## 🔄 Bulk Operations
-
-### Bulk Update
-
-Update multiple entries at once:
-
-```bash
-# Preview first
+# Bulk: update/archive matching entries
 notion bulk update <db_id> --where "Status=Todo" --set "Status=In Progress" --dry-run
-
-# Execute
-notion bulk update <db_id> --where "Status=Todo" --set "Status=In Progress" --yes
-```
-
-### Bulk Archive
-
-Archive entries matching a condition:
-
-```bash
-# Archive completed items older than 2024
-notion bulk archive <db_id> --where "Status=Done" --dry-run
 notion bulk archive <db_id> --where "Status=Done" --yes
 ```
 
-**Where clause syntax:**
-- Equals: `Property=Value`
-- Multiple conditions: `Status=Done,Priority=Low`
-
 ---
 
-## 🔍 Workspace Introspection
-
-### List Accessible Databases
-
-```bash
-notion inspect workspace
-notion inspect ws --compact  # Just names and IDs
-```
-
-### Get Database Schema
-
-```bash
-notion inspect schema <database_id>
-notion inspect schema <db_id> --llm  # Optimized for AI consumption
-```
-
-### Generate Context for AI
-
-```bash
-notion inspect context <database_id>
-
-# Outputs comprehensive context including:
-# - Schema with all properties and valid values
-# - Example entries
-# - Quick command reference
-```
-
----
-
-## 🔌 Raw API Access
-
-For operations not covered by other commands:
-
-```bash
-# GET request
-notion api GET "pages/<page_id>"
-
-# POST with body
-notion api POST "search" --data '{"query": "test"}'
-
-# With query parameters
-notion api GET "users" --query "page_size=5"
-```
-
----
-
-## 📝 Property Formats
-
-When setting properties with `--prop`, the CLI auto-detects types:
-
-| Value Format | Detected Type | Example |
-|--------------|---------------|---------|
-| Plain text | select | `--prop "Status=Done"` |
-| `true`/`false` | checkbox | `--prop "Active=true"` |
-| Numbers | number | `--prop "Count=42"` |
-| `YYYY-MM-DD` | date | `--prop "Due=2024-12-31"` |
-| URL | url | `--prop "Link=https://..."` |
-| Email | email | `--prop "Contact=a@b.com"` |
-| Comma-separated | multi_select | `--prop "Tags=bug,urgent"` |
-
-**Type hints** — Force a specific property type with `Key:type=Value`:
-
-```bash
-# Status properties (vs auto-detected select)
-notion page update <id> --prop "Status:status=Done"
-
-# Rich text instead of select
-notion page update <id> --prop "Notes:rich_text=Some notes"
-
-# People by user ID
-notion page update <id> --prop "Assignee:people=user-id-here"
-```
-
-For database queries with non-select properties:
-```bash
-notion db query <db_id> \
-  --filter-prop "Status" \
-  --filter-type equals \
-  --filter-value "Done" \
-  --filter-prop-type status  # Required for status type
-```
-
----
-
-## 🎯 Command Reference
+## Other Commands
 
 | Category | Commands |
 |----------|----------|
 | **Search** | `search` |
-| **Pages** | `page get`, `page create`, `page update`, `page archive` |
+| **Pages** | `page get`, `page create`, `page read`, `page edit`, `page update`, `page archive`, `page property` |
+| **Files** | `file upload` |
 | **Databases** | `db get`, `db query`, `db create`, `db update` |
 | **Blocks** | `block get`, `block list`, `block append`, `block update`, `block delete` |
 | **Comments** | `comment list`, `comment get`, `comment create` |
@@ -715,69 +222,34 @@ notion db query <db_id> \
 | **Relations** | `relations backlinks`, `relations link`, `relations unlink`, `relations graph` |
 | **Inspect** | `inspect workspace`, `inspect schema`, `inspect context` |
 | **Batch** | `batch` |
+| **Skill** | `skill install` |
 | **API** | `api` |
 
 ---
 
-## 📦 Agent Skills
+## Agent Skill
 
-The [`skills/`](./skills/) directory contains [AgentSkills](https://agentskills.dev)-compatible packages for use with OpenClaw, Claude Code, Cursor, and other agent frameworks.
-
-### Structure
-
-```
-skills/
-├── README.md                               # Installation & overview
-├── notion-onboarding/
-│   ├── SKILL.md                            # Workspace discovery workflow
-│   └── references/
-│       └── state-schema.md                 # ~/.config/notion/workspace.json schema
-└── notion-cli-agent/
-    ├── SKILL.md                            # Core CLI usage
-    └── references/
-        ├── filters.md                      # Property types × filter operators
-        ├── batch-patterns.md               # Multi-op batch patterns
-        └── workflows.md                    # Agent workflow recipes
-```
-
-### Progressive disclosure
-
-Skills load in three layers to keep context usage efficient:
-
-| Layer | Content | When loaded |
-|-------|---------|-------------|
-| Metadata | `name` + `description` | Always — triggers the skill |
-| Core | `SKILL.md` body | When skill activates |
-| Reference | `references/*.md` | On demand, as needed |
-
-The main `SKILL.md` for each skill is kept under 150 lines. Deep reference material lives in separate files that the agent reads only when that topic comes up.
-
-### Installation
+Install the CLI skill into any repo for use with Claude Code, Cursor, or other agent frameworks:
 
 ```bash
-# OpenClaw
-cp -r skills/notion-cli-agent ~/.local/share/openclaw/skills/
-cp -r skills/notion-onboarding ~/.local/share/openclaw/skills/
+notion skill install              # installs to current repo's .claude/skills/
+notion skill install /path/to/repo
+```
 
-# See skills/README.md for other frameworks
+The skill teaches agents how to use the CLI with progressive disclosure — core commands in `SKILL.md`, detailed references loaded on demand.
+
+---
+
+## Raw API Access
+
+```bash
+notion api GET "pages/<page_id>"
+notion api POST "search" --data '{"query": "test"}'
+notion api GET "users" --query "page_size=5"
 ```
 
 ---
 
-## 🤝 Contributing
+## License
 
-Contributions are welcome! Please open an issue first to discuss what you would like to change.
-
----
-
-## 📄 License
-
-MIT © Balneario de Cofrentes
-
----
-
-## 🙏 Acknowledgments
-
-Built with:
-- [Commander.js](https://github.com/tj/commander.js) — CLI framework
-- [Notion API](https://developers.notion.com/) — Official Notion API
+MIT
