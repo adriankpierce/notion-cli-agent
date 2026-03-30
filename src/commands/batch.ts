@@ -4,7 +4,6 @@
  */
 import { Command } from 'commander';
 import { getClient, NotionClient } from '../client.js';
-import { formatOutput } from '../utils/format.js';
 import { getDatabaseSchema, queryDatabase, updateDatabase } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
 import { buildTrashPayload } from '../utils/notion-helpers.js';
@@ -154,7 +153,6 @@ export function registerBatchCommand(program: Command): void {
     .option('--stop-on-error', 'Stop execution on first error')
     .option('--sequential', 'Execute operations one at a time')
     .option('-c, --concurrency <number>', 'Max parallel operations (default: 3)', '3')
-    .option('--llm', 'Output in LLM-friendly format')
     .action(withErrorHandler(async (options) => {
         let operations: BatchOperation[];
 
@@ -195,30 +193,23 @@ export function registerBatchCommand(program: Command): void {
         );
 
         // Output results
-        if (options.llm) {
-          console.log(`## Batch Results: ${succeeded}/${operations.length} succeeded\n`);
+        console.log(`## Batch Results: ${succeeded}/${operations.length} succeeded\n`);
 
-          results.forEach(r => {
-            const status = r.success ? 'OK' : 'FAIL';
-            const timing = r.durationMs !== undefined ? ` (${r.durationMs}ms)` : '';
-            console.log(`${status} [${r.index}] ${r.op}${timing}`);
-            if (r.error) {
-              console.log(`   Error: ${r.error}`);
-            } else if (r.result) {
-              const res = r.result as { id?: string; url?: string };
-              if (res.id) console.log(`   ID: ${res.id}`);
-              if (res.url) console.log(`   URL: ${res.url}`);
-            }
-          });
-
-          if (failed > 0) {
-            console.log(`\nWarning: ${failed} operations failed`);
+        results.forEach(r => {
+          const status = r.success ? 'OK' : 'FAIL';
+          const timing = r.durationMs !== undefined ? ` (${r.durationMs}ms)` : '';
+          console.log(`${status} [${r.index}] ${r.op}${timing}`);
+          if (r.error) {
+            console.log(`   Error: ${r.error}`);
+          } else if (r.result) {
+            const res = r.result as { id?: string; url?: string };
+            if (res.id) console.log(`   ID: ${res.id}`);
+            if (res.url) console.log(`   URL: ${res.url}`);
           }
-        } else {
-          console.log(formatOutput({
-            summary: { total: operations.length, succeeded, failed },
-            results,
-          }));
+        });
+
+        if (failed > 0) {
+          console.log(`\nWarning: ${failed} operations failed`);
         }
 
         // Exit with error code if any failed

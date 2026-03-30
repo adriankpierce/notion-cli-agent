@@ -180,7 +180,7 @@ describe('Databases Command', () => {
       await program.parseAsync(['node', 'test', 'database', 'query', 'db-123']);
 
       expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('More results available. Use --cursor next-cursor-123')
+        expect.stringContaining('(more results, cursor:')
       );
     });
 
@@ -376,12 +376,12 @@ describe('Databases Command', () => {
     });
   });
 
-  describe('--llm flag on query', () => {
+  describe('compact format on query', () => {
     it('should output compact format', async () => {
       setupDatabaseResolution(mockClient);
       mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
 
-      await program.parseAsync(['node', 'test', 'database', 'query', 'db-123', '--llm']);
+      await program.parseAsync(['node', 'test', 'database', 'query', 'db-123']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('page-123 Test Page'));
     });

@@ -127,7 +127,7 @@ describe('Relations Command', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"backlinks"'));
     });
 
-    it('should format LLM-friendly output with --llm', async () => {
+    it('should format LLM-friendly markdown output by default', async () => {
       const targetPage = { ...mockPage, id: 'target-123' };
       const linkingPage = {
         ...mockPage,
@@ -156,7 +156,7 @@ describe('Relations Command', () => {
         throw new Error('Unexpected path');
       });
 
-      await program.parseAsync(['node', 'test', 'relations', 'backlinks', 'target-123', '--llm']);
+      await program.parseAsync(['node', 'test', 'relations', 'backlinks', 'target-123']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Backlinks to'));
     });

@@ -49,7 +49,6 @@ export function registerStatsCommand(program: Command): void {
     .alias('db')
     .description('Get statistics overview for a database')
     .option('-j, --json', 'Output as JSON')
-    .option('--llm', 'LLM-friendly output')
     .action(withErrorHandler(async (databaseId: string, options) => {
         const client = getClient();
 
@@ -144,56 +143,26 @@ export function registerStatsCommand(program: Command): void {
           return;
         }
         
-        if (options.llm) {
-          console.log(`# Database Stats: ${title}\n`);
-          console.log(`**Total entries:** ${entries.length}\n`);
-          
-          for (const [propName, counts] of Object.entries(breakdowns)) {
-            console.log(`## ${propName}`);
-            const sorted = Object.entries(counts)
-              .filter(([, count]) => count > 0)
-              .sort((a, b) => b[1] - a[1]);
-            
-            for (const [value, count] of sorted) {
-              const pct = ((count / entries.length) * 100).toFixed(1);
-              console.log(`- ${value}: ${count} (${pct}%)`);
-            }
-            console.log('');
-          }
-          
-          console.log('## Recent Activity');
-          const recentMonths = Object.keys(editedByMonth).sort().slice(-3);
-          for (const month of recentMonths) {
-            console.log(`- ${month}: ${editedByMonth[month]} edited`);
-          }
-          return;
-        }
-        
-        // Standard output
-        console.log(`Database: ${title}`);
-        console.log(`   Total entries: ${entries.length}\n`);
-        
+        console.log(`# Database Stats: ${title}\n`);
+        console.log(`**Total entries:** ${entries.length}\n`);
+
         for (const [propName, counts] of Object.entries(breakdowns)) {
-          console.log(`${propName}:`);
+          console.log(`## ${propName}`);
           const sorted = Object.entries(counts)
             .filter(([, count]) => count > 0)
             .sort((a, b) => b[1] - a[1]);
-          
+
           for (const [value, count] of sorted) {
-            const pct = ((count / entries.length) * 100).toFixed(0);
-            const bar = '█'.repeat(Math.ceil(count / entries.length * 20));
-            console.log(`  ${value.padEnd(20)} ${String(count).padStart(4)} (${pct.padStart(3)}%) ${bar}`);
+            const pct = ((count / entries.length) * 100).toFixed(1);
+            console.log(`- ${value}: ${count} (${pct}%)`);
           }
           console.log('');
         }
-        
-        // Activity summary
-        console.log('Recent activity:');
-        const recentMonths = Object.keys(editedByMonth).sort().slice(-6);
+
+        console.log('## Recent Activity');
+        const recentMonths = Object.keys(editedByMonth).sort().slice(-3);
         for (const month of recentMonths) {
-          const created = createdByMonth[month] || 0;
-          const edited = editedByMonth[month] || 0;
-          console.log(`  ${month}: ${created} created, ${edited} edited`);
+          console.log(`- ${month}: ${editedByMonth[month]} edited`);
         }
     }));
 

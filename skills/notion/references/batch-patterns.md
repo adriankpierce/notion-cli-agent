@@ -52,7 +52,7 @@ notion batch --llm --data '[
 
 ### Create multiple tasks
 
-`data.properties` must use Notion API property format. Use `notion inspect schema <db_id> --llm` to discover property names and types.
+`data.properties` must use Notion API property format. Use `notion db schema <db_id>` to discover property names and types.
 
 ```bash
 notion batch --llm --data '[

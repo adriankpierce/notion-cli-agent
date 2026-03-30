@@ -1,13 +1,84 @@
 /**
- * Databases commands - get, create, update, query databases
+ * Databases commands - list, schema, get, create, update, query databases
  */
 import { Command } from 'commander';
 import { getClient } from '../client.js';
 import { formatOutput, formatDatabaseTitle, parseFilter } from '../utils/format.js';
 import { getDatabaseSchema, queryDatabase, updateDatabase } from '../utils/database-resolver.js';
 import { withErrorHandler } from '../utils/command-handler.js';
-import { getPageTitle } from '../utils/notion-helpers.js';
-import type { Database, PaginatedResponse, Page } from '../types/notion.js';
+import { getPageTitle, getDbTitle, getDbDescription } from '../utils/notion-helpers.js';
+import type { Database, PaginatedResponse, Page, PropertySchema } from '../types/notion.js';
+
+interface SelectOption {
+  id: string;
+  name: string;
+  color?: string;
+}
+
+interface StatusGroup {
+  id: string;
+  name: string;
+  option_ids: string[];
+}
+
+interface DatabaseWithDataSources extends Database {
+  data_sources?: { id: string; name: string }[];
+}
+
+function isMultiDataSource(db: DatabaseWithDataSources): boolean {
+  return Array.isArray(db.data_sources) && db.data_sources.length > 1;
+}
+
+function formatPropertyType(prop: PropertySchema): string {
+  const type = prop.type;
+  const data = prop[type] as Record<string, unknown> | undefined;
+
+  switch (type) {
+    case 'select':
+    case 'multi_select': {
+      const options = (data?.options as SelectOption[]) || [];
+      if (options.length === 0) return type;
+      const optionNames = options.map(o => o.name).slice(0, 5);
+      const more = options.length > 5 ? ` +${options.length - 5} more` : '';
+      return `${type} [${optionNames.join(', ')}${more}]`;
+    }
+
+    case 'status': {
+      const options = (data?.options as SelectOption[]) || [];
+      const groups = (data?.groups as StatusGroup[]) || [];
+      if (options.length === 0) return type;
+
+      const groupedOptions: string[] = [];
+      for (const group of groups) {
+        const groupOptions = options
+          .filter(o => group.option_ids.includes(o.id))
+          .map(o => o.name);
+        if (groupOptions.length > 0) {
+          groupedOptions.push(`${group.name}: ${groupOptions.join(', ')}`);
+        }
+      }
+      return `status {${groupedOptions.join(' | ')}}`;
+    }
+
+    case 'relation': {
+      const relatedDb = (data?.data_source_id as string) || (data?.database_id as string) || 'unknown';
+      return `relation → ${relatedDb.slice(0, 8)}...`;
+    }
+
+    case 'rollup': {
+      const rollupProp = (data?.rollup_property_name as string) || '';
+      const relationProp = (data?.relation_property_name as string) || '';
+      return `rollup(${relationProp}.${rollupProp})`;
+    }
+
+    case 'formula': {
+      return 'formula';
+    }
+
+    default:
+      return type;
+  }
+}
 
 export function registerDatabasesCommand(program: Command): void {
   const databases = program
@@ -15,6 +86,129 @@ export function registerDatabasesCommand(program: Command): void {
     .alias('databases')
     .alias('db')
     .description('Manage Notion databases');
+
+  // List all accessible databases
+  databases
+    .command('list')
+    .alias('ls')
+    .description('List all accessible databases')
+    .option('-l, --limit <number>', 'Max databases to show', '20')
+    .option('-j, --json', 'Output raw JSON')
+    .option('--compact', 'Compact output (names and IDs only)')
+    .action(withErrorHandler(async (options) => {
+      const client = getClient();
+
+      const result = await client.post('search', {
+        filter: { property: 'object', value: 'data_source' },
+        page_size: parseInt(options.limit, 10),
+      }) as { results: DatabaseWithDataSources[] };
+
+      if (options.json) {
+        console.log(formatOutput(result.results));
+        return;
+      }
+
+      console.log(`Found ${result.results.length} accessible database(s):\n`);
+
+      for (const db of result.results) {
+        try {
+          const title = getDbTitle(db);
+          const multiSource = isMultiDataSource(db);
+          const multiTag = multiSource ? ' [multi-source]' : '';
+          const desc = getDbDescription(db);
+
+          if (options.compact) {
+            console.log(`${title}  ${db.id}`);
+            continue;
+          }
+
+          console.log(`${title}${multiTag}`);
+          console.log(`   ID: ${db.id}`);
+          if (desc) console.log(`   Description: ${desc}`);
+
+          if (multiSource && db.data_sources) {
+            console.log(`   Data sources: ${db.data_sources.map(ds => ds.id).join(', ')}`);
+          }
+
+          const properties = db.properties || {};
+          const props = Object.entries(properties)
+            .filter(([, p]) => p.type !== 'title')
+            .slice(0, 8);
+
+          if (props.length > 0) {
+            console.log('   Properties:');
+            for (const [name, prop] of props) {
+              console.log(`     - ${name}: ${formatPropertyType(prop)}`);
+            }
+
+            const totalProps = Object.keys(properties).length;
+            if (totalProps > 9) {
+              console.log(`     ... and ${totalProps - 9} more`);
+            }
+          }
+          console.log('');
+        } catch (dbError) {
+          console.warn(`   Warning: could not read database ${db?.id || 'unknown'}: ${(dbError as Error).message}`);
+          console.log('');
+        }
+      }
+    }));
+
+  // Get detailed schema for a database
+  databases
+    .command('schema <database_id>')
+    .description('Get detailed schema for a database')
+    .option('-j, --json', 'Output raw JSON')
+    .action(withErrorHandler(async (databaseId: string, options) => {
+      const client = getClient();
+      const db = await getDatabaseSchema(client, databaseId);
+
+      if (options.json) {
+        console.log(formatOutput(db));
+        return;
+      }
+
+      const title = getDbTitle(db);
+      const desc = getDbDescription(db);
+
+      console.log(`# Database: ${title}\n`);
+      console.log(`ID: ${db.id}`);
+      if (desc) console.log(`Description: ${desc}`);
+      console.log(`\n## Properties\n`);
+
+      for (const [name, prop] of Object.entries(db.properties)) {
+        const typeInfo = formatPropertyType(prop);
+        console.log(`- **${name}** (${typeInfo})`);
+
+        if (prop.type === 'select' || prop.type === 'multi_select') {
+          const data = prop[prop.type] as { options?: SelectOption[] };
+          const opts = data?.options || [];
+          if (opts.length > 0) {
+            console.log(`  Options: ${opts.map(o => `"${o.name}"`).join(', ')}`);
+          }
+        } else if (prop.type === 'status') {
+          const data = prop.status as { options?: SelectOption[]; groups?: StatusGroup[] };
+          const opts = data?.options || [];
+          const groups = data?.groups || [];
+
+          for (const group of groups) {
+            const groupOpts = opts.filter(o => group.option_ids.includes(o.id));
+            if (groupOpts.length > 0) {
+              console.log(`  ${group.name}: ${groupOpts.map(o => `"${o.name}"`).join(', ')}`);
+            }
+          }
+        }
+      }
+
+      console.log(`\n## Usage Examples\n`);
+      console.log('```bash');
+      console.log(`# Query this database`);
+      console.log(`notion db query ${databaseId.slice(0, 8)}... --limit 10`);
+      console.log('');
+      console.log(`# Create a new entry`);
+      console.log(`notion page create --parent ${databaseId.slice(0, 8)}... --title "New Item"`);
+      console.log('```');
+    }));
 
   // Get database
   databases
@@ -51,7 +245,6 @@ export function registerDatabasesCommand(program: Command): void {
     .option('--title <value>', 'Filter by exact title (auto-detects title property)')
     .option('-l, --limit <number>', 'Max results', '100')
     .option('--cursor <cursor>', 'Pagination cursor')
-    .option('--llm', 'Compact LLM-friendly output')
     .option('-j, --json', 'Output raw JSON')
     .action(withErrorHandler(async (databaseId: string, options) => {
       const client = getClient();
@@ -113,28 +306,12 @@ export function registerDatabasesCommand(program: Command): void {
         return;
       }
 
-      // --llm: compact output
-      if (options.llm) {
-        for (const item of result.results) {
-          const title = getItemTitle(item);
-          console.log(`${item.id} ${title}`);
-        }
-        if (result.has_more) {
-          console.log(`(more results, cursor: ${result.next_cursor})`);
-        }
-        return;
-      }
-
-      console.log(`Found ${result.results.length} items:\n`);
-
       for (const item of result.results) {
         const title = getItemTitle(item);
-        console.log(`${title}`);
-        console.log(`   ID: ${item.id}`);
+        console.log(`${item.id} ${title}`);
       }
-
       if (result.has_more) {
-        console.log(`\nMore results available. Use --cursor ${result.next_cursor}`);
+        console.log(`(more results, cursor: ${result.next_cursor})`);
       }
     }));
 

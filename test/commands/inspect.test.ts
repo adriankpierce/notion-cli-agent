@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Command } from 'commander';
 import { mockDatabase, mockPage, createPaginatedResult, setupDatabaseResolution } from '../fixtures/notion-data';
 
-describe('Inspect Command', () => {
+describe('Database List and Schema Commands', () => {
   let program: Command;
   let mockClient: any;
 
@@ -24,19 +24,19 @@ describe('Inspect Command', () => {
     }));
 
     // Import command and register it
-    const { registerInspectCommand } = await import('../../src/commands/inspect');
+    const { registerDatabasesCommand } = await import('../../src/commands/databases');
     program = new Command();
-    registerInspectCommand(program);
+    registerDatabasesCommand(program);
   });
 
-  describe('inspect workspace', () => {
+  describe('db list', () => {
     it('should list all accessible databases', async () => {
       mockClient.post.mockResolvedValue(createPaginatedResult([
         mockDatabase,
         { ...mockDatabase, id: 'db-456', title: [{ plain_text: 'Second Database' }] },
       ]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+      await program.parseAsync(['node', 'test', 'database', 'list']);
 
       expect(mockClient.post).toHaveBeenCalledWith('search', expect.objectContaining({
         filter: { property: 'object', value: 'data_source' },
@@ -50,7 +50,7 @@ describe('Inspect Command', () => {
     it('should respect --limit option', async () => {
       mockClient.post.mockResolvedValue(createPaginatedResult([mockDatabase]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace', '--limit', '5']);
+      await program.parseAsync(['node', 'test', 'database', 'list', '--limit', '5']);
 
       expect(mockClient.post).toHaveBeenCalledWith('search', expect.objectContaining({
         page_size: 5,
@@ -60,7 +60,7 @@ describe('Inspect Command', () => {
     it('should show compact output with --compact', async () => {
       mockClient.post.mockResolvedValue(createPaginatedResult([mockDatabase]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace', '--compact']);
+      await program.parseAsync(['node', 'test', 'database', 'list', '--compact']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Test Database'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('db-123'));
@@ -69,7 +69,7 @@ describe('Inspect Command', () => {
     it('should output JSON with --json', async () => {
       mockClient.post.mockResolvedValue(createPaginatedResult([mockDatabase]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace', '--json']);
+      await program.parseAsync(['node', 'test', 'database', 'list', '--json']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"id": "db-123"'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"properties"'));
@@ -81,7 +81,7 @@ describe('Inspect Command', () => {
         { ...mockDatabase, id: 'db-456' },
       ]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+      await program.parseAsync(['node', 'test', 'database', 'list']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Found 2 accessible database(s)'));
     });
@@ -89,7 +89,7 @@ describe('Inspect Command', () => {
     it('should handle no databases found', async () => {
       mockClient.post.mockResolvedValue(createPaginatedResult([]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+      await program.parseAsync(['node', 'test', 'database', 'list']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Found 0 accessible database(s)'));
     });
@@ -106,7 +106,7 @@ describe('Inspect Command', () => {
       };
       mockClient.post.mockResolvedValue(createPaginatedResult([multiSourceDb]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+      await program.parseAsync(['node', 'test', 'database', 'list']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[multi-source]'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('ds-aaa'));
@@ -122,7 +122,7 @@ describe('Inspect Command', () => {
       };
       mockClient.post.mockResolvedValue(createPaginatedResult([multiSourceDb]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace', '--compact']);
+      await program.parseAsync(['node', 'test', 'database', 'list', '--compact']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Multi Source DB'));
     });
@@ -137,7 +137,7 @@ describe('Inspect Command', () => {
       const normalDb = { ...mockDatabase, id: 'db-normal', title: [{ plain_text: 'Normal DB' }] };
       mockClient.post.mockResolvedValue(createPaginatedResult([dbWithNoProps, normalDb]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+      await program.parseAsync(['node', 'test', 'database', 'list']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Found 2'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Normal DB'));
@@ -153,7 +153,7 @@ describe('Inspect Command', () => {
       const goodDb = { ...mockDatabase, id: 'db-good', title: [{ plain_text: 'Good DB' }] };
       mockClient.post.mockResolvedValue(createPaginatedResult([badDb, goodDb]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+      await program.parseAsync(['node', 'test', 'database', 'list']);
 
       expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('db-bad'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Good DB'));
@@ -162,7 +162,7 @@ describe('Inspect Command', () => {
     it('should not show multi-source indicators for normal databases', async () => {
       mockClient.post.mockResolvedValue(createPaginatedResult([mockDatabase]));
 
-      await program.parseAsync(['node', 'test', 'inspect', 'workspace']);
+      await program.parseAsync(['node', 'test', 'database', 'list']);
 
       const logCalls = (console.log as any).mock.calls.flat().join(' ');
       expect(logCalls).not.toContain('[multi-source]');
@@ -170,15 +170,15 @@ describe('Inspect Command', () => {
     });
   });
 
-  describe('inspect schema', () => {
+  describe('db schema', () => {
     it('should show detailed schema for database', async () => {
       setupDatabaseResolution(mockClient);
 
-      await program.parseAsync(['node', 'test', 'inspect', 'schema', 'db-123']);
+      await program.parseAsync(['node', 'test', 'database', 'schema', 'db-123']);
 
       expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Database: Test Database'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Properties:'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Properties'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Name'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Status'));
     });
@@ -186,20 +186,10 @@ describe('Inspect Command', () => {
     it('should output JSON with --json', async () => {
       setupDatabaseResolution(mockClient);
 
-      await program.parseAsync(['node', 'test', 'inspect', 'schema', 'db-123', '--json']);
+      await program.parseAsync(['node', 'test', 'database', 'schema', 'db-123', '--json']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"id": "ds-456"'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"properties"'));
-    });
-
-    it('should format LLM-friendly output with --llm', async () => {
-      setupDatabaseResolution(mockClient);
-
-      await program.parseAsync(['node', 'test', 'inspect', 'schema', 'db-123', '--llm']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Database:'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('ID: ds-456'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Properties'));
     });
 
     it('should show select options', async () => {
@@ -222,7 +212,7 @@ describe('Inspect Command', () => {
       };
       setupDatabaseResolution(mockClient, dbWithSelect);
 
-      await program.parseAsync(['node', 'test', 'inspect', 'schema', 'db-123']);
+      await program.parseAsync(['node', 'test', 'database', 'schema', 'db-123']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Priority'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('High'));
@@ -249,7 +239,7 @@ describe('Inspect Command', () => {
       };
       setupDatabaseResolution(mockClient, dbWithMultiSelect);
 
-      await program.parseAsync(['node', 'test', 'inspect', 'schema', 'db-123']);
+      await program.parseAsync(['node', 'test', 'database', 'schema', 'db-123']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Tags'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Important'));
@@ -281,9 +271,9 @@ describe('Inspect Command', () => {
       };
       setupDatabaseResolution(mockClient, dbWithStatus);
 
-      await program.parseAsync(['node', 'test', 'inspect', 'schema', 'db-123']);
+      await program.parseAsync(['node', 'test', 'database', 'schema', 'db-123']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Status groups:'));
+      // Default format uses formatPropertyType inline: status {To Do: Not Started | In Progress: In Progress | Complete: Done}
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('To Do: Not Started'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('In Progress: In Progress'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Complete: Done'));
@@ -305,217 +295,19 @@ describe('Inspect Command', () => {
       };
       setupDatabaseResolution(mockClient, dbWithRelation);
 
-      await program.parseAsync(['node', 'test', 'inspect', 'schema', 'db-123']);
+      await program.parseAsync(['node', 'test', 'database', 'schema', 'db-123']);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Project'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Related database: db-projects'));
+      // Default format uses formatPropertyType inline: relation -> db-proje...
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('relation'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('db-proje'));
     });
 
     it('should handle database fetch errors', async () => {
       mockClient.get.mockRejectedValue(new Error('Database not found'));
 
       await expect(
-        program.parseAsync(['node', 'test', 'inspect', 'schema', 'invalid-db'])
-      ).rejects.toThrow('process.exit(1)');
-
-      expect(console.error).toHaveBeenCalledWith('Error:', 'Database not found');
-    });
-  });
-
-  describe('inspect context', () => {
-    it('should generate LLM-friendly context for database', async () => {
-      setupDatabaseResolution(mockClient);
-      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
-
-      expect(mockClient.get).toHaveBeenCalledWith('data_sources/db-123');
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
-        page_size: 3,
-      }));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Notion Database Context'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Test Database'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Schema'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Example Entries'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Quick Commands'));
-    });
-
-    it('should respect --examples option', async () => {
-      setupDatabaseResolution(mockClient);
-      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123', '--examples', '5']);
-
-      expect(mockClient.post).toHaveBeenCalledWith('data_sources/db-123/query', expect.objectContaining({
-        page_size: 5,
-      }));
-    });
-
-    it('should show database description if available', async () => {
-      const dbWithDescription = {
-        ...mockDatabase,
-        description: [{ plain_text: 'This is a test database' }],
-      };
-      setupDatabaseResolution(mockClient, dbWithDescription);
-      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('This is a test database'));
-    });
-
-    it('should show schema table with property types', async () => {
-      setupDatabaseResolution(mockClient);
-      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('| Property | Type | Values |'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('|----------|------|--------|'));
-    });
-
-    it('should show select options in schema table', async () => {
-      const dbWithSelect = {
-        ...mockDatabase,
-        properties: {
-          Priority: {
-            id: 'priority',
-            name: 'Priority',
-            type: 'select',
-            select: {
-              options: [
-                { id: 'opt-1', name: 'High', color: 'red' },
-                { id: 'opt-2', name: 'Medium', color: 'yellow' },
-                { id: 'opt-3', name: 'Low', color: 'green' },
-              ],
-            },
-          },
-        },
-      };
-      setupDatabaseResolution(mockClient, dbWithSelect);
-      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Priority'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('High, Medium, Low'));
-    });
-
-    it('should truncate long option lists', async () => {
-      const dbWithManyOptions = {
-        ...mockDatabase,
-        properties: {
-          Tags: {
-            id: 'tags',
-            name: 'Tags',
-            type: 'multi_select',
-            multi_select: {
-              options: [
-                { id: 'opt-1', name: 'Tag1', color: 'red' },
-                { id: 'opt-2', name: 'Tag2', color: 'blue' },
-                { id: 'opt-3', name: 'Tag3', color: 'green' },
-                { id: 'opt-4', name: 'Tag4', color: 'yellow' },
-                { id: 'opt-5', name: 'Tag5', color: 'orange' },
-                { id: 'opt-6', name: 'Tag6', color: 'purple' },
-              ],
-            },
-          },
-        },
-      };
-      setupDatabaseResolution(mockClient, dbWithManyOptions);
-      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Tag1, Tag2, Tag3, Tag4, Tag5...'));
-    });
-
-    it('should show example entry properties', async () => {
-      setupDatabaseResolution(mockClient);
-      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('### Entry 1'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('ID: page-123'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('**Name:**'));
-    });
-
-    it('should format different property types in examples', async () => {
-      const complexPage = {
-        ...mockPage,
-        properties: {
-          Title: {
-            type: 'title',
-            title: [{ type: 'text', plain_text: 'Test Title' }],
-          },
-          Status: {
-            type: 'status',
-            status: { name: 'Done' },
-          },
-          Tags: {
-            type: 'multi_select',
-            multi_select: [{ name: 'Important' }, { name: 'Urgent' }],
-          },
-          Number: {
-            type: 'number',
-            number: 42,
-          },
-          Checkbox: {
-            type: 'checkbox',
-            checkbox: true,
-          },
-          Date: {
-            type: 'date',
-            date: { start: '2026-02-15' },
-          },
-          URL: {
-            type: 'url',
-            url: 'https://example.com',
-          },
-        },
-      };
-      setupDatabaseResolution(mockClient);
-      mockClient.post.mockResolvedValue(createPaginatedResult([complexPage]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Test Title'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Done'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Important, Urgent'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('42'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('true'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2026-02-15'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('https://example.com'));
-    });
-
-    it('should show quick command examples', async () => {
-      setupDatabaseResolution(mockClient);
-      mockClient.post.mockResolvedValue(createPaginatedResult([mockPage]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('notion db query db-123'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('notion page create --parent db-123'));
-    });
-
-    it('should handle empty example results', async () => {
-      setupDatabaseResolution(mockClient);
-      mockClient.post.mockResolvedValue(createPaginatedResult([]));
-
-      await program.parseAsync(['node', 'test', 'inspect', 'context', 'db-123']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Notion Database Context'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Schema'));
-      // Should still show quick commands even without examples
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Quick Commands'));
-    });
-
-    it('should handle context errors', async () => {
-      mockClient.get.mockRejectedValue(new Error('Database not found'));
-
-      await expect(
-        program.parseAsync(['node', 'test', 'inspect', 'context', 'invalid-db'])
+        program.parseAsync(['node', 'test', 'database', 'schema', 'invalid-db'])
       ).rejects.toThrow('process.exit(1)');
 
       expect(console.error).toHaveBeenCalledWith('Error:', 'Database not found');

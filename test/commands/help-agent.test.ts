@@ -21,14 +21,14 @@ describe('Help Agent Command', () => {
       const output = (console.log as any).mock.calls[0][0];
       expect(output).toContain('Quick Reference');
       expect(output).toContain('Setup');
-      expect(output).toContain('Most Common Operations');
     });
 
     it('should include workspace discovery commands', async () => {
       await program.parseAsync(['node', 'test', 'quickstart']);
 
       const output = (console.log as any).mock.calls[0][0];
-      expect(output).toContain('notion inspect');
+      expect(output).toContain('notion db list');
+      expect(output).toContain('notion db schema');
       expect(output).toContain('workspace structure');
     });
 
@@ -38,7 +38,6 @@ describe('Help Agent Command', () => {
       const output = (console.log as any).mock.calls[0][0];
       expect(output).toContain('notion search');
       expect(output).toContain('notion db query');
-      expect(output).toContain('notion find');
     });
 
     it('should include create and update examples', async () => {
@@ -50,37 +49,27 @@ describe('Help Agent Command', () => {
       expect(output).toContain('notion bulk update');
     });
 
-    it('should include AI-specific commands', async () => {
-      await program.parseAsync(['node', 'test', 'quickstart']);
-
-      const output = (console.log as any).mock.calls[0][0];
-      expect(output).toContain('notion ai');
-      expect(output).toContain('summarize');
-      expect(output).toContain('extract');
-    });
-
     it('should include batch operations', async () => {
       await program.parseAsync(['node', 'test', 'quickstart']);
 
       const output = (console.log as any).mock.calls[0][0];
       expect(output).toContain('notion batch');
-      expect(output).toContain('--llm');
     });
 
-    it('should include tips for AI agents', async () => {
+    it('should include tips', async () => {
       await program.parseAsync(['node', 'test', 'quickstart']);
 
       const output = (console.log as any).mock.calls[0][0];
-      expect(output).toContain('Tips for AI Agents');
-      expect(output).toContain('inspect context');
+      expect(output).toContain('Tips');
       expect(output).toContain('case-sensitive');
+      expect(output).toContain('dry-run');
     });
 
     it('should include property type documentation', async () => {
       await program.parseAsync(['node', 'test', 'quickstart']);
 
       const output = (console.log as any).mock.calls[0][0];
-      expect(output).toContain('Property Types');
+      expect(output).toContain('filter-prop-type');
       expect(output).toContain('status');
       expect(output).toContain('select');
       expect(output).toContain('checkbox');

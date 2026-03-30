@@ -314,7 +314,7 @@ describe('Batch Command', () => {
   });
 
   describe('LLM output format', () => {
-    it('should format output for LLMs with --llm flag', async () => {
+    it('should format output in LLM format by default', async () => {
       mockClient.get
         .mockResolvedValueOnce({ id: 'page-1', url: 'https://notion.so/page-1' })
         .mockResolvedValueOnce({ id: 'page-2', url: 'https://notion.so/page-2' });
@@ -324,7 +324,7 @@ describe('Batch Command', () => {
         { op: 'get', type: 'page', id: 'page-2' },
       ];
 
-      await program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations), '--llm']);
+      await program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations)]);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Batch Results:'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('OK'));
@@ -343,7 +343,7 @@ describe('Batch Command', () => {
       ];
 
       await expect(
-        program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations), '--llm'])
+        program.parseAsync(['node', 'test', 'batch', '--data', JSON.stringify(operations)])
       ).rejects.toThrow('process.exit(1)');
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('FAIL'));

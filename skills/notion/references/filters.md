@@ -192,7 +192,6 @@ notion find "in progress since last week" -d <tasks_db> --explain
 
 ## Tips
 
-- Run `notion inspect schema <db_id> --llm` to see all property names and types before filtering
-- Use `--explain` on `notion find` to see what Notion filter object was generated without executing
+- Run `notion db schema <db_id>` to see all property names and types before filtering
 - Status values are workspace-specific — always check schema for exact strings
 - `notion find` handles common natural language patterns (done/hecho, overdue/vencida, unassigned/sin asignar, this week/esta semana)

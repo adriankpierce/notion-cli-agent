@@ -39,7 +39,6 @@ export function registerSearchCommand(program: Command): void {
     .option('--db <database_id>', 'Filter results to pages in this database')
     .option('--exact', 'Only show exact title matches')
     .option('--first', 'Return only the first result (exit 1 if none)')
-    .option('--llm', 'Compact LLM-friendly output')
     .option('-j, --json', 'Output raw JSON')
     .action(withErrorHandler(async (query: string | undefined, options) => {
       const client = getClient();
@@ -106,7 +105,7 @@ export function registerSearchCommand(program: Command): void {
       // --first: return one result or exit 1
       if (options.first) {
         if (items.length === 0) {
-          if (!options.json && !options.llm) console.error('No matching result found.');
+          if (!options.json) console.error('No matching result found.');
           process.exit(1);
         }
         items = [items[0]];
@@ -122,31 +121,13 @@ export function registerSearchCommand(program: Command): void {
         return;
       }
 
-      // --llm: compact output
-      if (options.llm) {
-        for (const item of items) {
-          const title = getItemTitle(item);
-          const type = item.object === 'page' ? 'page' : 'db';
-          console.log(`[${type}] ${item.id} ${title}`);
-        }
-        if (lastHasMore && !options.first) {
-          console.log(`(more results available)`);
-        }
-        return;
-      }
-
       for (const item of items) {
-        const isPage = item.object === 'page';
-        const label = isPage ? '[page]' : '[db]';
         const title = getItemTitle(item);
-        console.log(`${label} ${title}`);
-        console.log(`   ID: ${item.id}`);
-        if (item.url) console.log(`   URL: ${item.url}`);
-        console.log('');
+        const type = item.object === 'page' ? 'page' : 'db';
+        console.log(`[${type}] ${item.id} ${title}`);
       }
-
       if (lastHasMore && !options.first) {
-        console.log(`More results available. Use --cursor ${lastCursor}`);
+        console.log(`(more results available)`);
       }
     }));
 }

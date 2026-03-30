@@ -50,9 +50,9 @@ describe('Stats Command', () => {
 
       await program.parseAsync(['node', 'test', 'stats', 'overview', 'db-123']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Database: Test Database'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Total entries: 3'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Status:'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Database Stats: Test Database'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('**Total entries:** 3'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('## Status'));
     });
 
     it('should output JSON when --json flag is used', async () => {
@@ -77,7 +77,7 @@ describe('Stats Command', () => {
 
       await program.parseAsync(['node', 'test', 'stats', 'overview', 'db-123']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Total entries: 0'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('**Total entries:** 0'));
     });
 
     it('should include select properties matching naming conventions in breakdowns', async () => {
@@ -164,22 +164,7 @@ describe('Stats Command', () => {
       expect(parsed.breakdowns.Status['(empty)']).toBe(1);
     });
 
-    it('should show LLM-friendly output with --llm flag', async () => {
-      setupDatabaseResolution(mockClient);
-      const entries = [
-        createMockPage('p1', 'Task 1', {
-          Status: { id: 'status', type: 'status', status: { name: 'Done', color: 'green' } },
-        }),
-      ];
-      mockClient.post.mockResolvedValue(createPaginatedResult(entries));
-
-      await program.parseAsync(['node', 'test', 'stats', 'overview', 'db-123', '--llm']);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('# Database Stats:'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('**Total entries:** 1'));
-      expect(console.log).toHaveBeenCalledWith('## Recent Activity');
-    });
-  });
+});
 
   describe('stats timeline', () => {
     it('should display timeline for default 14 days', async () => {

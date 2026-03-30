@@ -146,13 +146,12 @@ notion page update <id> --prop "Owner:people=<user_id>"
 
 ---
 
-## Workspace Introspection
+## Workspace Discovery
 
 ```bash
-notion inspect ws --compact              # all databases: name + ID
-notion inspect schema <db_id> --llm      # property types + valid values
-notion inspect context <db_id>           # full context for working with a DB
-notion ai prompt <db_id>                 # generate agent-specific instructions
+notion db list                           # all databases with properties
+notion db list --compact                 # all databases: name + ID
+notion db schema <db_id>                 # property types + valid values
 ```
 
 ---
@@ -205,7 +204,7 @@ notion bulk archive <db_id> --where "Status=Done" --yes
 | **Search** | `search` |
 | **Pages** | `page get`, `page create`, `page read`, `page edit`, `page update`, `page archive`, `page property` |
 | **Files** | `file upload` |
-| **Databases** | `db get`, `db query`, `db create`, `db update` |
+| **Databases** | `db list`, `db schema`, `db get`, `db query`, `db create`, `db update` |
 | **Blocks** | `block get`, `block list`, `block append`, `block update`, `block delete` |
 | **Comments** | `comment list`, `comment get`, `comment create` |
 | **Users** | `user me`, `user list`, `user get` |
@@ -219,7 +218,6 @@ notion bulk archive <db_id> --where "Status=Done" --yes
 | **Templates** | `template list`, `template save`, `template use`, `template show`, `template delete` |
 | **Duplicate** | `duplicate page`, `duplicate schema`, `duplicate db` |
 | **Relations** | `relations backlinks`, `relations link`, `relations unlink`, `relations graph` |
-| **Inspect** | `inspect workspace`, `inspect schema`, `inspect context` |
 | **Batch** | `batch` |
 | **Skill** | `skill install` |
 | **API** | `api` |

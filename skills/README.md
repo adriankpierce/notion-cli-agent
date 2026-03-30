@@ -10,8 +10,7 @@ skills/
     ├── SKILL.md
     └── references/
         ├── filters.md           # All property types × operators
-        ├── batch-patterns.md    # Multi-op patterns for minimal tool calls
-        └── workflows.md         # Common agent workflow recipes
+        └── batch-patterns.md    # Multi-op patterns for minimal tool calls
 ```
 
 ## Skill loading
@@ -42,5 +41,5 @@ ln -s $(pwd)/skills/notion ~/.local/share/openclaw/skills/
 
 1. Install the CLI: `npm install -g notion-cli-agent`
 2. Set token: `export NOTION_TOKEN="ntn_..."` or save to `~/.config/notion/api_key`
-3. Discover your workspace: `notion inspect ws --compact`
+3. Discover your workspace: `notion db list --compact`
 4. Start working: `notion page read <page_id>`, `notion page create --parent <db_id> --file doc.md`, etc.

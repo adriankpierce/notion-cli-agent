@@ -10,109 +10,89 @@ export function registerHelpAgentCommand(program: Command): void {
     .description('Quick reference guide for AI agents')
     .action(() => {
       console.log(`
-# notion-cli-agent Quick Reference for AI Agents
+# notion-cli Quick Reference
 
 ## Setup
 Export your token: export NOTION_TOKEN="ntn_xxx"
 
-## Most Common Operations
-
-### 1. Discover workspace structure
+## 1. Discover workspace structure
 \`\`\`bash
-notion inspect ws --compact          # List all accessible databases
-notion inspect ws --json             # Full raw inventory
-notion inspect schema <db_id> --llm  # Get database schema with valid values
-notion inspect context <db_id>       # Full context for working with a database
+notion db list                       # All databases with properties
+notion db list --compact             # Just names + IDs
+notion db schema <db_id>             # Full schema with valid values
 \`\`\`
 
-### 2. Search and query
+## 2. Search and query
 \`\`\`bash
-notion search "keyword"              # Search pages and databases
+notion search "keyword"              # Workspace-wide keyword search
 notion db query <db_id> --limit 10   # Query database entries
-notion db query <db_id> --limit 10 --json
-notion find "overdue tasks" -d <db_id>  # Smart natural language query
+notion db query <db_id> --title "Exact Name"  # Exact title lookup
 \`\`\`
 
-### 3. Create entries
+## 3. Read pages
+\`\`\`bash
+notion page read <page_id>           # Page content as markdown
+notion page get <page_id>            # Page properties
+notion page get <page_id> --content  # Properties + content blocks
+\`\`\`
+
+## 4. Create entries
 \`\`\`bash
 notion page create --parent <db_id> --title "New Entry"
-notion page create --parent <db_id> --title "Task" --prop "Status=Todo" --prop "Priority=High"
+notion page create --parent <db_id> --title "Task" --prop "Status:status=Todo" --prop "Priority:select=High"
 \`\`\`
 
-### 4. Update entries
+## 5. Update entries
 \`\`\`bash
-notion page update <page_id> --prop "Status=Done"
-notion bulk update <db_id> --where "Status=Todo" --set "Status=In Progress" --yes
+notion page update <page_id> --prop "Status:status=Done"
+notion page edit <page_id> --search "old text" --replace "new text"
+notion bulk update <db_id> --where "Status=Todo" --set "Status=In Progress" --dry-run
 \`\`\`
 
-### 5. Read page content
-\`\`\`bash
-notion page get <page_id>            # Get page properties
-notion page get <page_id> --content  # Include content blocks
-notion page get <page_id> --json     # Raw JSON
-notion ai summarize <page_id>        # Get concise summary
-\`\`\`
-
-### 6. Add content to pages
+## 6. Add content to pages
 \`\`\`bash
 notion block append <page_id> --text "Hello world"
 notion block append <page_id> --heading2 "Section" --bullet "Item 1" --bullet "Item 2"
-notion block append <page_id> --todo "Task to do"
 \`\`\`
 
-## Property Types for Filters
+## Property type filters
 
 When filtering, specify --filter-prop-type for non-text properties:
-- status: --filter-prop-type status
-- select: --filter-prop-type select  
-- number: --filter-prop-type number
-- date: --filter-prop-type date
-- checkbox: --filter-prop-type checkbox
+- status, select, multi_select, number, date, checkbox, people, relation
 
 Example:
 \`\`\`bash
 notion db query <db_id> --filter-prop "Status" --filter-type equals --filter-value "Done" --filter-prop-type status
 \`\`\`
 
-## AI-Specific Commands
+## Batch operations (reduce tool calls)
 
 \`\`\`bash
-notion ai prompt <db_id>             # Generate optimal prompt for this database
-notion ai summarize <page_id>        # Summarize page content
-notion ai extract <page_id> --schema "email,phone,date"  # Extract structured data
-notion ai suggest <db_id> "what I want to do"  # Get command suggestions
-\`\`\`
-
-## Batch Operations (reduce tool calls)
-
-\`\`\`bash
-notion batch --llm --data '[
+notion batch --dry-run --data '[
   {"op":"get","type":"page","id":"xxx"},
   {"op":"create","type":"page","parent":"db_id","data":{...}},
   {"op":"update","type":"page","id":"yyy","data":{...}}
 ]'
 \`\`\`
 
-## Output Formats
+## Output formats
 
-- Default: Human-readable
-- --json or -j: Raw JSON (for parsing)
-- --llm: Supported on selected commands such as find, batch, and inspect schema
+- Default: compact structured output
+- --json or -j: raw Notion API JSON
 
-## Tips for AI Agents
+## Tips
 
-1. Always run \`notion inspect context <db_id>\` first to understand database structure
-2. Property names and values must match EXACTLY (case-sensitive)
-3. Use --dry-run on bulk/batch operations before executing
-4. Status properties use "status" type, not "select"
-5. The title property name varies per database (could be "Name", "Título", "Task", etc.)
+1. Property names and values are case-sensitive — check with \`notion db schema\`
+2. Use --dry-run on bulk/batch operations before executing
+3. Status properties use "status" type, not "select"
+4. Title property name varies per database ("Name", "Task", etc.)
+5. Use --clear-prop to clear properties, not empty values
 
-## Get Help
+## Help
 
 \`\`\`bash
-notion --help                # List all commands
-notion <command> --help      # Help for specific command
-notion ai prompt <db_id>     # Database-specific instructions
+notion --help                        # List all commands
+notion <command> --help              # Help for specific command
 \`\`\`
 `);
     });

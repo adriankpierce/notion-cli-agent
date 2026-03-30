@@ -21,7 +21,6 @@ export function registerRelationsCommand(program: Command): void {
     .alias('bl')
     .description('Find pages that link to this page')
     .option('-j, --json', 'Output as JSON')
-    .option('--llm', 'LLM-friendly output')
     .action(withErrorHandler(async (pageId: string, options) => {
       const client = getClient();
 
@@ -138,51 +137,24 @@ export function registerRelationsCommand(program: Command): void {
         const relationLinks = backlinks.filter(b => b.type === 'relation');
         const mentionLinks = backlinks.filter(b => b.type === 'mention');
         
-        if (options.llm) {
-          console.log(`## Backlinks to "${targetTitle}"\n`);
-          
-          if (relationLinks.length > 0) {
-            console.log(`### Direct Relations (${relationLinks.length})`);
-            for (const b of relationLinks) {
-              console.log(`- **${getPageTitle(b.page)}** via \`${b.property}\``);
-              console.log(`  ID: ${b.page.id}`);
-            }
-            console.log('');
-          }
-          
-          if (mentionLinks.length > 0) {
-            console.log(`### Potential Mentions (${mentionLinks.length})`);
-            for (const b of mentionLinks.slice(0, 10)) {
-              console.log(`- ${getPageTitle(b.page)}`);
-            }
-            if (mentionLinks.length > 10) {
-              console.log(`- ... and ${mentionLinks.length - 10} more`);
-            }
-          }
-          return;
-        }
-        
-        // Standard output
-        console.log(`Found ${backlinks.length} backlinks:\n`);
-        
+        console.log(`## Backlinks to "${targetTitle}"\n`);
+
         if (relationLinks.length > 0) {
-          console.log('Direct Relations:');
+          console.log(`### Direct Relations (${relationLinks.length})`);
           for (const b of relationLinks) {
-            console.log(`   ${getPageTitle(b.page)}`);
-            console.log(`   └─ via property: ${b.property}`);
-            console.log(`      ID: ${b.page.id}`);
-            console.log('');
+            console.log(`- **${getPageTitle(b.page)}** via \`${b.property}\``);
+            console.log(`  ID: ${b.page.id}`);
           }
+          console.log('');
         }
-        
+
         if (mentionLinks.length > 0) {
-          console.log('Potential Mentions:');
+          console.log(`### Potential Mentions (${mentionLinks.length})`);
           for (const b of mentionLinks.slice(0, 10)) {
-            console.log(`   ${getPageTitle(b.page)}`);
-            console.log(`      ID: ${b.page.id}`);
+            console.log(`- ${getPageTitle(b.page)}`);
           }
           if (mentionLinks.length > 10) {
-            console.log(`   ... and ${mentionLinks.length - 10} more`);
+            console.log(`- ... and ${mentionLinks.length - 10} more`);
           }
         }
 

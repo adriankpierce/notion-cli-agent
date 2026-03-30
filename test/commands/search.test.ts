@@ -146,9 +146,7 @@ describe('Search Command', () => {
 
       await program.parseAsync(['node', 'test', 'search']);
 
-      expect(console.log).toHaveBeenCalledWith(
-        'More results available. Use --cursor next-cursor-123'
-      );
+      expect(console.log).toHaveBeenCalledWith('(more results available)');
     });
   });
 
@@ -170,9 +168,7 @@ describe('Search Command', () => {
 
       await program.parseAsync(['node', 'test', 'search']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[page]'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('My Page'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('ID: page-1'));
+      expect(console.log).toHaveBeenCalledWith('[page] page-1 My Page');
     });
 
     it('should format databases with icon', async () => {
@@ -197,7 +193,8 @@ describe('Search Command', () => {
 
       await program.parseAsync(['node', 'test', 'search']);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('URL: https://notion.so/page-1'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('page-1'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('My Page'));
     });
   });
 
@@ -306,7 +303,7 @@ describe('Search Command', () => {
     });
   });
 
-  describe('--llm flag', () => {
+  describe('compact format (default)', () => {
     it('should output compact format', async () => {
       const result = createPaginatedResult([
         createMockPage('page-1', 'Task One'),
@@ -314,7 +311,7 @@ describe('Search Command', () => {
       ]);
       mockClient.post.mockResolvedValue(result);
 
-      await program.parseAsync(['node', 'test', 'search', 'task', '--llm']);
+      await program.parseAsync(['node', 'test', 'search', 'task']);
 
       expect(console.log).toHaveBeenCalledWith('[page] page-1 Task One');
       expect(console.log).toHaveBeenCalledWith('[page] page-2 Task Two');
@@ -324,7 +321,7 @@ describe('Search Command', () => {
       const result = createPaginatedResult([createMockDatabase('db-1', 'My DB')]);
       mockClient.post.mockResolvedValue(result);
 
-      await program.parseAsync(['node', 'test', 'search', 'db', '--llm']);
+      await program.parseAsync(['node', 'test', 'search', 'db']);
 
       expect(console.log).toHaveBeenCalledWith('[db] db-1 My DB');
     });
