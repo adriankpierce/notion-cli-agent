@@ -211,7 +211,6 @@ notion bulk archive <db_id> --where "Status=Done" --yes
 | **Users** | `user me`, `user list`, `user get` |
 | **Export** | `export page`, `export db` |
 | **Import** | `import obsidian`, `import csv`, `import markdown` |
-| **AI** | `ai summarize`, `ai extract`, `ai prompt`, `ai suggest` |
 | **Find** | `find` |
 | **Bulk** | `bulk update`, `bulk archive` |
 | **Validate** | `validate check`, `validate lint`, `validate health` |

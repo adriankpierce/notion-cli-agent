@@ -61,7 +61,6 @@ notion inspect ws --compact                     # all databases, names + ids
 notion inspect ws --json                        # full raw inventory
 notion inspect schema <db_id> --llm             # property types + valid values
 notion inspect context <db_id>                  # workflow context + examples
-notion ai prompt <db_id>                        # DB-specific agent instructions
 ```
 
 ## Query
@@ -90,8 +89,6 @@ notion find "high priority" -d <db_id> --explain           # preview filter, don
 notion page get <page_id>                       # properties
 notion page get <page_id> --content             # + content blocks
 notion page get <page_id> --json                # raw JSON
-notion ai summarize <page_id>                   # concise summary
-notion ai extract <page_id> --schema "email,phone,date"
 ```
 
 ## Upload files to pages
@@ -184,5 +181,4 @@ See `references/filters.md` for full operator reference.
 ```bash
 notion quickstart          # full quick reference
 notion <command> --help    # per-command help
-notion ai suggest <db_id> "what I want to do"
 ```
